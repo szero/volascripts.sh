@@ -19,7 +19,7 @@ print_help() {
     echo -e "   Show this help message.\n"
     echo -e "-u, --upload <upload_target>"
     echo -e "   Upload a file or whole directory. Every argument that is not prepended"
-    echo -e "   with sutable option will 'tbe treated as upload target.\n"
+    echo -e "   with suitable option will be treated as upload target.\n"
     echo -e "-r, --room <room_name>"
     echo -e "   Specifiy upload room. (This plus at least one upload target is the only"
     echo -e "   required option to upload something).\n"
@@ -35,6 +35,8 @@ print_help() {
     echo -e "   Upload file with custom name. (It won't overwrite the file in your"
     echo -e "   fielsystem). You can upload only one file if this option is set.\n"
     echo -e "-w, --watch <directory>"
+    echo -e "   Makes your script to watch over specific directory. Every file added"
+    echo -e "   to that directory will be uploaded to Volafile. (To exit press Ctrl+Z)\n"
     exit 0
 }
 
@@ -153,7 +155,6 @@ SEP="$(printf '\n\t\v')"
 IFS="$SEP"
 
 eval set -- "$OPTS"
-echo "$OPTS"
 
 while true; do
   case "$1" in
