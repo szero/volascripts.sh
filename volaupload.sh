@@ -181,7 +181,7 @@ while true; do
             TARGETS="${TARGETS}${1}$(printf '\v')" ; shift
         done ; break ;;
     * ) shift ;;
-esac
+  esac
 done
 
 howmany() ( set -f; set -- $1; echo $# )
