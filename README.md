@@ -20,8 +20,8 @@ Example usage
 Prerequsites
 ------------
 
-- curl >= 7.33.0
 - bash >= 4.0
+- curl >= 7.33.0
 
 Contributing
 ------------

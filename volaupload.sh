@@ -2,7 +2,7 @@
 
 OPTS=`getopt --options hu:r:cn:p:a:w \
       --longoptions help,upload:,room:,call,nick:,password:,upload-as:,watch \
-      -n 'volaupload' -- "$@" -`
+      -n 'volaupload.sh' -- "$@" -`
 
 if [ $? != 0 ] ; then echo "Failed parsing options." >&2 ; exit 1 ; fi
 
@@ -41,6 +41,12 @@ print_help() {
 }
 
 SERVER="https://volafile.io"
+COOKIE="/tmp/cuckie"
+
+proper_exit() { rm -f "$COOKIE"; exit 0; }
+failure_exit() { rm -f "$COOKIE"; exit 1; }
+#Return non zero value when script gets interrupted with Ctrl+C
+trap failure_exit INT
 
 extract() {
     _key=$2
@@ -60,20 +66,25 @@ makeApiCall() {
         name=$3
         password=$4
         if [[ $password != "" ]]; then
-            cookie=$(curl --tlsv1.2 -H "Origin: ${SERVER}" -H "Referer: ${SERVER}" -H "Accept: text/values" \
+            #cookie "memoization"
+            if [[ ! -f "$COOKIE" ]]; then
+                curl -1 -H "Origin: ${SERVER}" \
+                -H "Referer: ${SERVER}" -H "Accept: text/values" \
                 "${SERVER}/rest/login?name=${name}&password=${password}" 2>/dev/null |
-                cut -d$'\n' -f1)
-            if [[ $cookie == "error.code=403" ]]; then
+                cut -d$'\n' -f1 > "$COOKIE"
+            fi
+            cookie="$(head -n 1 "$COOKIE")"
+            if [[ "$cookie" == "error.code=403" ]]; then
                 return 1
             fi
-            curl --tlsv1.2 --cookie "$cookie" -H "Origin: ${SERVER}" -H "Referer: ${SERVER}" -H "Accept: text/values" \
+            curl -1 -b "$cookie" -H "Origin: ${SERVER}" -H "Referer: ${SERVER}" -H "Accept: text/values" \
                 "${SERVER}/rest/getUploadKey?name=${name}&room=${room}" 2>/dev/null
         else
-            curl --tlsv1.2 -H "Origin: ${SERVER}" -H "Referer: ${SERVER}" -H "Accept: text/values" \
+            curl -1 -H "Origin: ${SERVER}" -H "Referer: ${SERVER}" -H "Accept: text/values" \
                 "${SERVER}/rest/getUploadKey?name=${name}&room=${room}" 2>/dev/null
         fi
     else
-        curl --tlsv1.2 -H "Origin: ${SERVER}" -H "Referer: ${SERVER}" -H "Accept: text/values" \
+        curl -1 -H "Origin: ${SERVER}" -H "Referer: ${SERVER}" -H "Accept: text/values" \
             "${SERVER}/rest/${method}?${query}" 2>/dev/null
     fi
 }
@@ -86,7 +97,7 @@ doUpload() {
     renamed="$5"
 
     if [[ $4 != "" ]] && [[ $3 != "" ]]; then
-        response=$(makeApiCall getUploadKey "name=$name&room=$room" ${name} ${pass})
+        response=$(makeApiCall getUploadKey "name=$name&room=$room" "$name" "$pass")
     elif [[ $3 != "" ]]; then
         response=$(makeApiCall getUploadKey "name=$name&room=$room")
     else
@@ -97,22 +108,22 @@ doUpload() {
 
     if [[ "$?" != "0" ]]; then
         echo -e "\nLogin Error: You used wrong login or/and password my dude."
-        echo -e "You wanna login properly, so that those sweet volastats can stack up!\n"
-        exit 1
+        echo -e "You wanna login properly, so those sweet volastats can stack up!\n"
+        failure_exit
     fi
 
     error=$(extract "$response" error)
 
     if [[ $error != "" ]]; then
         echo "Error: $error"
-        exit 1
+        failure_exit
     fi
 
     server=$(extract "$response" server)
     key=$(extract "$response" key)
     file_id=$(extract "$response" file_id)
 
-    # -f option makes curl return error 22 on server responses with code 400 and higer
+    # -f option makes curl return error 22 on server responses with code 400 and higher
     if [[ -n $renamed ]]; then
         echo -e "\n-- Uploading as $name: $file"
         echo -e "-- Uploading file renamed to: ${renamed}\n"
@@ -137,11 +148,10 @@ doUpload() {
         IFS="$OIFS"
     elif (( $error == 6 )); then
         printf "\nYou used wrong room ID! Closing script.\n"
-        exit 1
     elif (( $error == 22 )); then
         printf "\nServer error. Usually caused by gateway timeout.\n"
     else
-        printf "\nError %d: Upload failed!\n" "$error"
+        printf "\nError nr %d: Upload failed!\n" "$error"
     fi
 }
 
@@ -171,7 +181,7 @@ while true; do
             TARGETS="${TARGETS}${1}$(printf '\v')" ; shift
         done ; break ;;
     * ) shift ;;
-  esac
+esac
 done
 
 howmany() ( set -f; set -- $1; echo $# )
@@ -188,18 +198,15 @@ elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
                 doUpload "${path}${file}" "$ROOM" "$NICK" "$PASSWORD"
             done
         IFS="$SEP"
-        exit 0
     fi
 elif [[ -n $RENAMED_FILE ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
     set -- $TARGETS
     if [[ -f "$1" ]];  then
         doUpload "$1" "$ROOM" "$NICK" "$PASSWORD" "$RENAMED_FILE"
-        exit 0
     fi
 elif [[ $argc == 2 ]] && [[ -n $CALL ]]; then
     set -- $TARGETS
     makeApiCall "$1" "$2"
-    exit 0
 elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && \
      [[ -z "$RENAMED_FILE" ]] && [[ -z "$CALL" ]] && [[ -n "$ROOM" ]]; then
     for t in $TARGETS ; do
@@ -222,3 +229,4 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && \
 else
     print_help
 fi
+proper_exit
