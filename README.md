@@ -3,7 +3,7 @@ volaupload.sh
 
 This is a bash script that allows you to upload files to [Volafile](https://volafile.io) 
 without using the browser. This is convinient since it allows you aslo to upload
-files with different name to boost your shitposing experience. Use -h or --help command
+files with different name to boost up your shitposing experience. Use -h or --help command
 for full list of capabilities.
 
 Disclaimer
