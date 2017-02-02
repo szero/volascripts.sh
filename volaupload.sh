@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-OPTS=`getopt --options hu:r:cn:p:a:w \
-      --longoptions help,upload:,room:,call,nick:,password:,upload-as:,watch \
-      -n 'volaupload.sh' -- "$@" -`
-
-if [ $? != 0 ] ; then echo "Failed parsing options." >&2 ; exit 1 ; fi
+if ! OPTS=$(getopt --options hu:r:cn:p:a:w \
+--longoptions help,upload:,room:,call,nick:,password:,upload-as:,watch \
+-n 'volaupload.sh' -- "$@") ; then
+    echo -e "\nFiled parsing options.\n"  ; exit 1
+fi
 
 #####################################################################################
 # You can add ROOM, NICK and/or PASSWORD variable to your shell config as such:     #
@@ -40,6 +40,11 @@ print_help() {
     exit 0
 }
 
+upload_error() {
+    echo -e "\n${1}: This argument isn't a file or a directory. Skipping ..."
+    echo -e "Use -h or --help to check program usage.\n"
+}
+
 SERVER="https://volafile.io"
 COOKIE="/tmp/cuckie"
 
@@ -50,10 +55,10 @@ trap failure_exit INT
 
 extract() {
     _key=$2
-    echo "$1" | (while read line; do
-        b="$(echo $line | cut -d'=' -f1)"
+    echo "$1" | (while read -r line; do
+        b="$(echo "$line" | cut -d'=' -f1)"
         if [[ "$b" == "$_key" ]]; then
-            printf "$line" | cut -d'=' -f2
+            printf "%s" "$line" | cut -d'=' -f2
             return;
         fi
         done)
@@ -101,6 +106,7 @@ doUpload() {
         response=$(makeApiCall getUploadKey "name=$name&room=$room")
     fi
 
+    #shellcheck disable=SC2181
     if [[ "$?" != "0" ]]; then
         echo -e "\nLogin Error: You used wrong login and/or password my dude."
         echo -e "You wanna login properly, so those sweet volastats can stack up!\n"
@@ -133,13 +139,10 @@ doUpload() {
         error="$?"
     fi
     case "$error" in #do something on error
-        "0" ) #Remove whitespace from IFS to process filenames with spaces in them properly.
-              IFS="$SEP"
-              #Replace spaces with %20 so my terminal url finder can see links properly.
+        "0" ) #Replace spaces with %20 so my terminal url finder can see links properly.
               file=$(basename "$file" | sed -r "s/ /%20/g" )
               printf "\nVola direct link:\n"
-              printf "%s/get/%s/%s\n\n" "$SERVER" "$file_id" "$file"
-              IFS="$OIFS" ;;
+              printf "%s/get/%s/%s\n\n" "$SERVER" "$file_id" "$file" ;;
         "6" ) printf "\nYou used wrong room ID! Closing script.\n\n" ; failure_exit ;;
         "22") printf "\nServer error. Usually caused by gateway timeout.\n\n" ; failure_exit ;;
         *   ) printf "\nError nr %s: Upload failed!\n\n" "$error" ; failure_exit ;;
@@ -148,19 +151,16 @@ doUpload() {
 
 #Remove space from IFS so we can upload files that contain spaces.
 #I use little hack here, I replaced default separator from space to
-#vertical tab so we can iterate over the TARGETS variable without
+#to carrige return so we can iterate over the TARGETS variable without
 #a fear of splitting filenames.
 
-OIFS="$IFS"
-SEP="$(printf '\n\t\v')"
-IFS="$SEP"
-
+IFS="$(printf '\n\t\r')"
 eval set -- "$OPTS"
 
 while true; do
   case "$1" in
     -h | --help) HELP="true" ; shift ;;
-    -u | --upload) TARGETS="${TARGETS}${2}$(printf '\v')" ; shift 2 ;;
+    -u | --upload) TARGETS="${TARGETS}${2}$(printf '\r')" ; shift 2 ;;
     -r | --room) ROOM="$2" ; shift 2 ;;
     -c | --call) CALL="true"; shift ;;
     -n | --nick) NICK="$2" ; shift 2 ;;
@@ -168,35 +168,37 @@ while true; do
     -a | --upload-as) RENAMED_FILE="$2" ; shift 2 ;;
     -w | --watch) WATCHING="true" ; shift ;;
     -- ) shift;
-        until [[ "$1" == "-" ]]; do
-            TARGETS="${TARGETS}${1}$(printf '\v')" ; shift
+        until [[ -z "$1" ]]; do
+            TARGETS="${TARGETS}${1}$(printf '\r')" ; shift
         done ; break ;;
     * ) shift ;;
-  esac
+esac
 done
 
+#shellcheck disable=SC2086
 howmany() ( set -f; set -- $1; echo $# )
-declare -i argc=$(howmany "$TARGETS")
+declare -i argc
+argc=$(howmany "$TARGETS")
 
 if [[ $argc == 0 ]] || [[ -n $HELP ]]; then
     print_help
 elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
-    TARGET=$(echo $TARGETS | tr -d "\v")
+    TARGET=$(echo "$TARGETS" | tr -d "\r")
     if [[ -d "$TARGET" ]]; then
-        IFS="$OIFS"
         inotifywait -m "$TARGET" -e close_write -e moved_to |
-            while read path action file; do
+            while read -r path _ file; do
                 doUpload "${path}${file}" "$ROOM" "$NICK" "$PASSWORD"
             done
-        IFS="$SEP"
     fi
 elif [[ -n $RENAMED_FILE ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
-    set -- $TARGETS
+    set -- "$TARGETS"
     if [[ -f "$1" ]];  then
         doUpload "$1" "$ROOM" "$NICK" "$PASSWORD" "$RENAMED_FILE"
+    else
+        upload_error "$1"
     fi
 elif [[ $argc == 2 ]] && [[ -n $CALL ]]; then
-    set -- $TARGETS
+    set -- "$TARGETS"
     makeApiCall "$1" "$2"
 elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && \
      [[ -z "$RENAMED_FILE" ]] && [[ -z "$CALL" ]] && [[ -n "$ROOM" ]]; then
@@ -213,8 +215,7 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && \
         elif [[ -f "$t" ]]; then
             doUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "$RENAMED_FILE"
         else
-            echo -e "\n${t}: This argument isn't a file or a directory. Skipping ..."
-            echo -e "Use -h or --help to check program usage.\n"
+            upload_error "$t"
         fi
     done
 else
