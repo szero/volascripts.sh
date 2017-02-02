@@ -140,9 +140,9 @@ doUpload() {
               printf "\nVola direct link:\n"
               printf "%s/get/%s/%s\n\n" "$SERVER" "$file_id" "$file"
               IFS="$OIFS" ;;
-        "6" ) printf "\nYou used wrong room ID! Closing script.\n\n" ;;
-        "22") printf "\nServer error. Usually caused by gateway timeout.\n\n" ;;
-        *   ) printf "\nError nr %s: Upload failed!\n\n" "$error" ;;
+        "6" ) printf "\nYou used wrong room ID! Closing script.\n\n" ; failure_exit ;;
+        "22") printf "\nServer error. Usually caused by gateway timeout.\n\n" ; failure_exit ;;
+        *   ) printf "\nError nr %s: Upload failed!\n\n" "$error" ; failure_exit ;;
     esac
 }
 
