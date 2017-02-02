@@ -60,29 +60,24 @@ extract() {
 }
 
 makeApiCall() {
-    query=$2
     method=$1
-    if [[ $3 != "" ]]; then
-        name=$3
-        password=$4
-        if [[ $password != "" ]]; then
-            #cookie "memoization"
-            if [[ ! -f "$COOKIE" ]]; then
-                curl -1 -H "Origin: ${SERVER}" \
-                -H "Referer: ${SERVER}" -H "Accept: text/values" \
-                "${SERVER}/rest/login?name=${name}&password=${password}" 2>/dev/null |
-                cut -d$'\n' -f1 > "$COOKIE"
-            fi
-            cookie="$(head -n 1 "$COOKIE")"
-            if [[ "$cookie" == "error.code=403" ]]; then
-                return 1
-            fi
-            curl -1 -b "$cookie" -H "Origin: ${SERVER}" -H "Referer: ${SERVER}" -H "Accept: text/values" \
-                "${SERVER}/rest/getUploadKey?name=${name}&room=${room}" 2>/dev/null
-        else
-            curl -1 -H "Origin: ${SERVER}" -H "Referer: ${SERVER}" -H "Accept: text/values" \
-                "${SERVER}/rest/getUploadKey?name=${name}&room=${room}" 2>/dev/null
+    query=$2
+    name=$3
+    password=$4
+    if [[ -n "$name" ]] && [[ -n "$password" ]]; then
+        #cookie "memoization"
+        if [[ ! -f "$COOKIE" ]]; then
+            curl -1 -H "Origin: ${SERVER}" \
+            -H "Referer: ${SERVER}" -H "Accept: text/values" \
+            "${SERVER}/rest/login?name=${name}&password=${password}" 2>/dev/null |
+            cut -d$'\n' -f1 > "$COOKIE"
         fi
+        cookie="$(head -n 1 "$COOKIE")"
+        if [[ "$cookie" == "error.code=403" ]]; then
+            return 1
+        fi
+        curl -1 -b "$cookie" -H "Origin: ${SERVER}" -H "Referer: ${SERVER}" \
+            -H "Accept: text/values" "${SERVER}/rest/${method}?${query}" 2>/dev/null
     else
         curl -1 -H "Origin: ${SERVER}" -H "Referer: ${SERVER}" -H "Accept: text/values" \
             "${SERVER}/rest/${method}?${query}" 2>/dev/null
@@ -96,25 +91,25 @@ doUpload() {
     pass="$4"
     renamed="$5"
 
-    if [[ $4 != "" ]] && [[ $3 != "" ]]; then
+    if [[ -n "$name" ]] && [[ -n "$pass" ]]; then
         response=$(makeApiCall getUploadKey "name=$name&room=$room" "$name" "$pass")
-    elif [[ $3 != "" ]]; then
+    elif [[ -n "$name" ]]; then
         response=$(makeApiCall getUploadKey "name=$name&room=$room")
     else
-        #if no user specified name default it to Volaphile
+        #If user didn't specify name, default it to Volaphile.
         name="Volaphile"
         response=$(makeApiCall getUploadKey "name=$name&room=$room")
     fi
 
     if [[ "$?" != "0" ]]; then
-        echo -e "\nLogin Error: You used wrong login or/and password my dude."
+        echo -e "\nLogin Error: You used wrong login and/or password my dude."
         echo -e "You wanna login properly, so those sweet volastats can stack up!\n"
         failure_exit
     fi
 
     error=$(extract "$response" error)
 
-    if [[ $error != "" ]]; then
+    if [[ -n "$error" ]]; then
         echo "Error: $error"
         failure_exit
     fi
@@ -124,41 +119,37 @@ doUpload() {
     file_id=$(extract "$response" file_id)
 
     # -f option makes curl return error 22 on server responses with code 400 and higher
-    if [[ -n $renamed ]]; then
+    if [[ -n "$renamed" ]]; then
         echo -e "\n-- Uploading as $name: $file"
-        echo -e "-- Uploading file renamed to: ${renamed}\n"
+        echo -e "-- File renamed to: ${renamed}\n"
         curl --http2 -1 -f -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
             "https://${server}/upload?room=${room}&key=${key}" 1>/dev/null
+        error="$?"
         file="$renamed"
     else
         echo -e "\n-- Uploading as $name: $file\n"
         curl --http2 -1 -f -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
             "https://${server}/upload?room=${room}&key=${key}" 1>/dev/null
+        error="$?"
     fi
-
-    declare -i error="$?"
-
-    if (( $error == 0 )); then
-        # Remove whitespace from IFS to process filenames with spaces in them properly.
-        IFS="$SEP"
-        #Replace spaces with %20 so my terminal url finder can see links properly.
-        file=$(basename "$file" | sed -r "s/ /%20/g" )
-        printf "\nVola direct link:\n"
-        printf "%s/get/%s/%s\n" "$SERVER" "$file_id" "$file"
-        IFS="$OIFS"
-    elif (( $error == 6 )); then
-        printf "\nYou used wrong room ID! Closing script.\n"
-    elif (( $error == 22 )); then
-        printf "\nServer error. Usually caused by gateway timeout.\n"
-    else
-        printf "\nError nr %d: Upload failed!\n" "$error"
-    fi
+    case "$error" in #do something on error
+        "0" ) #Remove whitespace from IFS to process filenames with spaces in them properly.
+              IFS="$SEP"
+              #Replace spaces with %20 so my terminal url finder can see links properly.
+              file=$(basename "$file" | sed -r "s/ /%20/g" )
+              printf "\nVola direct link:\n"
+              printf "%s/get/%s/%s\n\n" "$SERVER" "$file_id" "$file"
+              IFS="$OIFS" ;;
+        "6" ) printf "\nYou used wrong room ID! Closing script.\n\n" ;;
+        "22") printf "\nServer error. Usually caused by gateway timeout.\n\n" ;;
+        *   ) printf "\nError nr %s: Upload failed!\n\n" "$error" ;;
+    esac
 }
 
 #Remove space from IFS so we can upload files that contain spaces.
 #I use little hack here, I replaced default separator from space to
 #vertical tab so we can iterate over the TARGETS variable without
-#fear of spliting filenames.
+#a fear of splitting filenames.
 
 OIFS="$IFS"
 SEP="$(printf '\n\t\v')"
@@ -223,7 +214,7 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && \
             doUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "$RENAMED_FILE"
         else
             echo -e "\n${t}: This argument isn't a file or a directory. Skipping ..."
-            echo -e "Use -h or --help to check program usage."
+            echo -e "Use -h or --help to check program usage.\n"
         fi
     done
 else
