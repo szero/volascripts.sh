@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+#shellcheck disable=SC2086
 
 if ! OPTS=$(getopt --options hu:r:cn:p:a:w \
 --longoptions help,upload:,room:,call,nick:,password:,upload-as:,watch \
@@ -48,8 +49,8 @@ upload_error() {
 SERVER="https://volafile.io"
 COOKIE="/tmp/cuckie"
 
-proper_exit() { rm -f "$COOKIE"; exit 0; }
-failure_exit() { rm -f "$COOKIE"; exit 1; }
+proper_exit() ( rm -f "$COOKIE"; exit 0 )
+failure_exit() ( rm -f "$COOKIE"; exit 1 )
 #Return non zero value when script gets interrupted with Ctrl+C
 trap failure_exit INT
 
@@ -175,7 +176,6 @@ while true; do
 esac
 done
 
-#shellcheck disable=SC2086
 howmany() ( set -f; set -- $1; echo $# )
 declare -i argc
 argc=$(howmany "$TARGETS")
@@ -191,14 +191,14 @@ elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
             done
     fi
 elif [[ -n $RENAMED_FILE ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
-    set -- "$TARGETS"
+    set -f ; set -- $TARGETS
     if [[ -f "$1" ]];  then
         doUpload "$1" "$ROOM" "$NICK" "$PASSWORD" "$RENAMED_FILE"
     else
         upload_error "$1"
     fi
 elif [[ $argc == 2 ]] && [[ -n $CALL ]]; then
-    set -- "$TARGETS"
+    set -f ; set -- $TARGETS
     makeApiCall "$1" "$2"
 elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && \
      [[ -z "$RENAMED_FILE" ]] && [[ -z "$CALL" ]] && [[ -n "$ROOM" ]]; then
