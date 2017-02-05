@@ -49,8 +49,8 @@ upload_error() {
 SERVER="https://volafile.io"
 COOKIE="/tmp/cuckie"
 
-proper_exit() ( rm -f "$COOKIE"; exit 0 )
-failure_exit() ( rm -f "$COOKIE"; exit 1 )
+proper_exit() { rm -f "$COOKIE"; exit 0; }
+failure_exit() { rm -f "$COOKIE"; exit 1; }
 #Return non zero value when script gets interrupted with Ctrl+C
 trap failure_exit INT
 
@@ -78,7 +78,7 @@ makeApiCall() {
             "${SERVER}/rest/login?name=${name}&password=${password}" 2>/dev/null |
             cut -d$'\n' -f1 > "$COOKIE"
         fi
-        cookie="$(head -n 1 "$COOKIE")"
+        cookie="$(head -qn 1 "$COOKIE")"
         if [[ "$cookie" == "error.code=403" ]]; then
             return 1
         fi
@@ -155,7 +155,7 @@ doUpload() {
 #to carrige return so we can iterate over the TARGETS variable without
 #a fear of splitting filenames.
 
-IFS="$(printf '\n\t\r')"
+IFS="$(printf '\r')"
 eval set -- "$OPTS"
 
 while true; do
@@ -180,7 +180,10 @@ howmany() ( set -f; set -- $1; echo $# )
 declare -i argc
 argc=$(howmany "$TARGETS")
 
-if [[ $argc == 0 ]] || [[ -n $HELP ]]; then
+if [[ -z "$ROOM" ]]; then
+    echo -e "\nCan't upload stuff to nowhere my dude! Specify proper room ID, pretty please!\n"
+    failure_exit
+elif [[ $argc == 0 ]] || [[ -n $HELP ]]; then
     print_help
 elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
     TARGET=$(echo "$TARGETS" | tr -d "\r")
