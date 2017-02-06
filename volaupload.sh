@@ -4,7 +4,7 @@
 if ! OPTS=$(getopt --options hu:r:cn:p:a:w \
 --longoptions help,upload:,room:,call,nick:,password:,upload-as:,watch \
 -n 'volaupload.sh' -- "$@") ; then
-    echo -e "\nFiled parsing options.\n"  ; exit 1
+    echo -e "\nFiled parsing options.\n" ; exit 1
 fi
 
 #####################################################################################
@@ -71,7 +71,7 @@ makeApiCall() {
     name=$3
     password=$4
     if [[ -n "$name" ]] && [[ -n "$password" ]]; then
-        #cookie "memoization"
+        #session "memoization"
         if [[ ! -f "$COOKIE" ]]; then
             curl -1 -H "Origin: ${SERVER}" \
             -H "Referer: ${SERVER}" -H "Accept: text/values" \
@@ -180,11 +180,11 @@ howmany() ( set -f; set -- $1; echo $# )
 declare -i argc
 argc=$(howmany "$TARGETS")
 
-if [[ -z "$ROOM" ]]; then
+if [[ $argc == 0 ]] || [[ -n $HELP ]]; then
+    print_help
+elif [[ -z "$ROOM" ]]; then
     echo -e "\nCan't upload stuff to nowhere my dude! Specify proper room ID, pretty please!\n"
     failure_exit
-elif [[ $argc == 0 ]] || [[ -n $HELP ]]; then
-    print_help
 elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
     TARGET=$(echo "$TARGETS" | tr -d "\r")
     if [[ -d "$TARGET" ]]; then
@@ -200,11 +200,13 @@ elif [[ -n $RENAMED_FILE ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
     else
         upload_error "$1"
     fi
+    proper_exit
 elif [[ $argc == 2 ]] && [[ -n $CALL ]]; then
     set -f ; set -- $TARGETS
     makeApiCall "$1" "$2"
+    proper_exit
 elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && \
-     [[ -z "$RENAMED_FILE" ]] && [[ -z "$CALL" ]] && [[ -n "$ROOM" ]]; then
+     [[ -z "$RENAMED_FILE" ]] && [[ -z "$CALL" ]]; then
     for t in $TARGETS ; do
         if [[ -d "$t" ]]; then
             shopt -s globstar
@@ -221,7 +223,7 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && \
             upload_error "$t"
         fi
     done
+    proper_exit
 else
     print_help
 fi
-proper_exit
