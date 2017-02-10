@@ -122,6 +122,7 @@ doUpload() {
     fi
 
     server=$(extract "$response" server)
+    server="https://${server}"
     key=$(extract "$response" key)
     file_id=$(extract "$response" file_id)
 
@@ -130,13 +131,13 @@ doUpload() {
         echo -e "\n-- Uploading as $name: $file"
         echo -e "-- File renamed to: ${renamed}\n"
         curl --http2 -1 -f -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
-            "https://${server}/upload?room=${room}&key=${key}" 1>/dev/null
+            "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
         file="$renamed"
     else
         echo -e "\n-- Uploading as $name: $file\n"
         curl --http2 -1 -f -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
-            "https://${server}/upload?room=${room}&key=${key}" 1>/dev/null
+            "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
     fi
     case "$error" in #do something on error
