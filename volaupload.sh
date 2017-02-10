@@ -185,6 +185,9 @@ if [[ $argc == 0 ]] || [[ -n $HELP ]]; then
 elif [[ -z "$ROOM" ]]; then
     echo -e "\nCan't upload stuff to nowhere my dude! Specify proper room ID, pretty please!\n"
     failure_exit
+elif [[ -z "$NICK" ]] && [[ -n "$PASSWORD" ]]; then
+    echo -e "\nSpecifying password, but not username? What are you? A silly-willy?\n"
+    failure_exit
 elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
     TARGET=$(echo "$TARGETS" | tr -d "\r")
     if [[ -d "$TARGET" ]]; then
