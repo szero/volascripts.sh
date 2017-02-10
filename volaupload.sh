@@ -121,8 +121,7 @@ doUpload() {
         failure_exit
     fi
 
-    server=$(extract "$response" server)
-    server="https://${server}"
+    server="https://$(extract "$response" server)"
     key=$(extract "$response" key)
     file_id=$(extract "$response" file_id)
 
