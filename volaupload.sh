@@ -33,8 +33,11 @@ print_help() {
     echo -e "   uploads will count towards your file stats on Volafile."
     echo -e "   See https://volafile.io/user/<your_username>\n"
     echo -e "-a, --upload-as <renamed_file>"
-    echo -e "   Upload file with custom name. (It won't overwrite the file in your"
-    echo -e "   fielsystem). You can upload only one file if this option is set.\n"
+    echo -e "   Upload file with custom name. (It won't overwrite the filename in your"
+    echo -e "   fielsystem). You can upload multiple renamed files.\n"
+    echo -e "   Example:"
+    echo -e "       volaupload.sh -r BEPPi file1.jpg file2.png -a funny.jpg -a nasty.png"
+    echo -e "   First occurence of -a parameter always renames first given file and so on.\n"
     echo -e "-w, --watch <directory>"
     echo -e "   Makes your script to watch over specific directory. Every file added"
     echo -e "   to that directory will be uploaded to Volafile. (To exit press Ctrl+Z)\n"
@@ -42,7 +45,7 @@ print_help() {
 }
 
 upload_error() {
-    echo -e "\n${1}: This argument isn't a file or a directory. Skipping ..."
+    echo -e "\n${1}: Bad argument. Skipping ..."
     echo -e "Use -h or --help to check program usage.\n"
 }
 
@@ -161,32 +164,32 @@ eval set -- "$OPTS"
 while true; do
   case "$1" in
     -h | --help) HELP="true" ; shift ;;
-    -u | --upload) TARGETS="${TARGETS}${2}$(printf '\r')" ; shift 2 ;;
+    -u | --upload) TARGETS="${TARGETS}${2}$IFS" ; shift 2 ;;
     -r | --room) ROOM="$2" ; shift 2 ;;
     -c | --call) CALL="true"; shift ;;
     -n | --nick) NICK="$2" ; shift 2 ;;
     -p | --password) PASSWORD="$2" ; shift 2 ;;
-    -a | --upload-as) RENAMED_FILE="$2" ; shift 2 ;;
+    -a | --upload-as) RENAMES="${RENAMES}${2}$IFS" ; shift 2 ;;
     -w | --watch) WATCHING="true" ; shift ;;
     -- ) shift;
         until [[ -z "$1" ]]; do
-            TARGETS="${TARGETS}${1}$(printf '\r')" ; shift
+            TARGETS="${TARGETS}${1}$IFS" ; shift
         done ; break ;;
     * ) shift ;;
 esac
 done
 
-howmany() ( set -f; set -- $1; echo $# )
+howmany() ( set -f; eval set -- $1; echo $# )
 declare -i argc
 argc=$(howmany "$TARGETS")
 
 if [[ $argc == 0 ]] || [[ -n $HELP ]]; then
     print_help
-elif [[ -z "$ROOM" ]]; then
+elif [[ -z "$ROOM" ]] && [[ -z "$CALL" ]]; then
     echo -e "\nCan't upload stuff to nowhere my dude! Specify proper room ID, pretty please!\n"
     failure_exit
 elif [[ -z "$NICK" ]] && [[ -n "$PASSWORD" ]]; then
-    echo -e "\nSpecifying password, but not username? What are you? A silly-willy?\n"
+    echo -e "\nSpecifying password, but not a username? What are you? A silly-willy?\n"
     failure_exit
 elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
     TARGET=$(echo "$TARGETS" | tr -d "\r")
@@ -196,32 +199,28 @@ elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
                 doUpload "${path}${file}" "$ROOM" "$NICK" "$PASSWORD"
             done
     fi
-elif [[ -n $RENAMED_FILE ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
-    set -f ; set -- $TARGETS
-    if [[ -f "$1" ]];  then
-        doUpload "$1" "$ROOM" "$NICK" "$PASSWORD" "$RENAMED_FILE"
-    else
-        upload_error "$1"
-    fi
-    proper_exit
-elif [[ $argc == 2 ]] && [[ -n $CALL ]]; then
+elif [[ $argc == 2 ]] && [[ -n "$CALL" ]]; then
     set -f ; set -- $TARGETS
     makeApiCall "$1" "$2"
     proper_exit
-elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && \
-     [[ -z "$RENAMED_FILE" ]] && [[ -z "$CALL" ]]; then
+elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
+    eval set -- $RENAMES
     for t in $TARGETS ; do
         if [[ -d "$t" ]]; then
             shopt -s globstar
             GLOBIGNORE=".:.."
             for f in "${t}"/**
             do
-                if [[ -f "$f" ]]; then
+                if [[ -f "$f" ]] && [[ -n "$1" ]]; then
+                    doUpload "${f}" "$ROOM" "$NICK" "$PASSWORD" "$1" ; shift
+                elif [[ -f "$f" ]]; then
                     doUpload "${f}" "$ROOM" "$NICK" "$PASSWORD"
                 fi
             done
+        elif [[ -f "$t" ]] && [[ -n "$1" ]]; then
+            doUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "$1" ; shift
         elif [[ -f "$t" ]]; then
-            doUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "$RENAMED_FILE"
+            doUpload "$t" "$ROOM" "$NICK" "$PASSWORD"
         else
             upload_error "$t"
         fi
