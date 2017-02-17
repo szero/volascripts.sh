@@ -9,7 +9,7 @@ Use -h or --help command for full list of capabilities.
 Disclaimer
 ----------
 
-Script was orginally made by [lain](https://github.com/laino) and Xiao. It seemed
+Script was originally made by [lain](https://github.com/laino) and Xiao. It seemed
 to be abandoned so I enchanted it with agrument parsing and some other features.
 
 Example usage

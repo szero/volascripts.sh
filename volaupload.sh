@@ -11,7 +11,7 @@ fi
 # You can add ROOM, NICK and/or PASSWORD variable to your shell config as such:     #
 # export ROOM="BEEPi" ; export NICK="dude" ; export PASSWORD="cuck" so you wouldn't #
 # have to pass them every time you want to upload something. Using parameters will  #
-# override variables in your shell config.                                          #
+# override variables from the shell config.                                          #
 #####################################################################################
 
 print_help() {
@@ -45,7 +45,7 @@ print_help() {
 }
 
 upload_error() {
-    echo -e "\n${1}: Bad argument. Skipping ..."
+    echo -e "\n${1}: This argument isn't a file or a directory. Skipping ..."
     echo -e "Use -h or --help to check program usage.\n"
 }
 
@@ -179,7 +179,7 @@ while true; do
 esac
 done
 
-howmany() ( set -f; eval set -- $1; echo $# )
+howmany() ( set -f; set -- $1; echo $# )
 declare -i argc
 argc=$(howmany "$TARGETS")
 
@@ -204,7 +204,7 @@ elif [[ $argc == 2 ]] && [[ -n "$CALL" ]]; then
     makeApiCall "$1" "$2"
     proper_exit
 elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
-    eval set -- $RENAMES
+    set -- $RENAMES
     for t in $TARGETS ; do
         if [[ -d "$t" ]]; then
             shopt -s globstar
@@ -212,17 +212,17 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
             for f in "${t}"/**
             do
                 if [[ -f "$f" ]] && [[ -n "$1" ]]; then
-                    doUpload "${f}" "$ROOM" "$NICK" "$PASSWORD" "$1" ; shift
+                    doUpload "${f}" "$ROOM" "$NICK" "$PASSWORD" "${1}.${f##*.}" ; shift
                 elif [[ -f "$f" ]]; then
                     doUpload "${f}" "$ROOM" "$NICK" "$PASSWORD"
                 fi
             done
         elif [[ -f "$t" ]] && [[ -n "$1" ]]; then
-            doUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "$1" ; shift
+            doUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "${1}.${t##*.}" ; shift
         elif [[ -f "$t" ]]; then
             doUpload "$t" "$ROOM" "$NICK" "$PASSWORD"
         else
-            upload_error "$t"
+            upload_error "$t" ; shift
         fi
     done
     proper_exit
