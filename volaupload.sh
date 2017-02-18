@@ -69,10 +69,10 @@ extract() {
 }
 
 makeApiCall() {
-    method=$1
-    query=$2
-    name=$3
-    password=$4
+    method="$1"
+    query="$2"
+    name="$3"
+    password="$4"
     if [[ -n "$name" ]] && [[ -n "$password" ]]; then
         #session "memoization"
         if [[ ! -f "$COOKIE" ]]; then
