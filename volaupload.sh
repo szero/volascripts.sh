@@ -130,14 +130,14 @@ doUpload() {
 
     # -f option makes curl return error 22 on server responses with code 400 and higher
     if [[ -n "$renamed" ]]; then
-        echo -e "\n-- Uploading as $name: $file"
+        echo -e "\n-- Uploading $file to $ROOM as $name"
         echo -e "-- File renamed to: ${renamed}\n"
         curl --http2 -1 -f -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
             "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
         file="$renamed"
     else
-        echo -e "\n-- Uploading as $name: $file\n"
+        echo -e "\n-- Uploading $file to $ROOM as $name\n"
         curl --http2 -1 -f -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
             "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
