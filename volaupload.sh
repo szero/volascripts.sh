@@ -54,7 +54,9 @@ COOKIE="/tmp/cuckie"
 
 proper_exit() { rm -f "$COOKIE"; exit 0; }
 failure_exit() { rm -f "$COOKIE"; exit 1; }
-#Return non zero value when script gets interrupted with Ctrl+C
+#remove cookie so on server error to get fresh session for next upload
+skip() { rm -f "$COOKIE"; }
+#Return non zero value when script gets interrupted with Ctrl+C and remove cookie
 trap failure_exit INT
 
 extract() {
@@ -148,8 +150,8 @@ doUpload() {
               printf "\nVola direct link:\n"
               printf "%s/get/%s/%s\n\n" "$SERVER" "$file_id" "$file" ;;
         "6" ) printf "\nYou used wrong room ID! Closing script.\n\n" ; failure_exit ;;
-        "22") printf "\nServer error. Usually caused by gateway timeout.\n\n" ; failure_exit ;;
-        *   ) printf "\nError nr %s: Upload failed!\n\n" "$error" ; failure_exit ;;
+        "22") printf "\nServer error. Usually caused by gateway timeout.\n\n" ; skip ;;
+        *   ) printf "\nError nr %s: Upload failed!\n\n" "$error" ; skip ;;
     esac
 }
 
@@ -162,21 +164,21 @@ IFS="$(printf '\r')"
 eval set -- "$OPTS"
 
 while true; do
-  case "$1" in
-    -h | --help) HELP="true" ; shift ;;
-    -u | --upload) TARGETS="${TARGETS}${2}$IFS" ; shift 2 ;;
-    -r | --room) ROOM="$2" ; shift 2 ;;
-    -c | --call) CALL="true"; shift ;;
-    -n | --nick) NICK="$2" ; shift 2 ;;
-    -p | --password) PASSWORD="$2" ; shift 2 ;;
-    -a | --upload-as) RENAMES="${RENAMES}${2}$IFS" ; shift 2 ;;
-    -w | --watch) WATCHING="true" ; shift ;;
-    -- ) shift;
-        until [[ -z "$1" ]]; do
-            TARGETS="${TARGETS}${1}$IFS" ; shift
-        done ; break ;;
-    * ) shift ;;
-esac
+    case "$1" in
+        -h | --help) HELP="true" ; shift ;;
+        -u | --upload) TARGETS="${TARGETS}${2}$IFS" ; shift 2 ;;
+        -r | --room) ROOM="$2" ; shift 2 ;;
+        -c | --call) CALL="true"; shift ;;
+        -n | --nick) NICK="$2" ; shift 2 ;;
+        -p | --password) PASSWORD="$2" ; shift 2 ;;
+        -a | --upload-as) RENAMES="${RENAMES}${2}$IFS" ; shift 2 ;;
+        -w | --watch) WATCHING="true" ; shift ;;
+        --) shift;
+            until [[ -z "$1" ]]; do
+                TARGETS="${TARGETS}${1}$IFS" ; shift
+            done ; break ;;
+        * ) shift ;;
+    esac
 done
 
 howmany() ( set -f; set -- $1; echo $# )
