@@ -202,17 +202,13 @@ doUpload() {
 }
 
 tryUpload() {
-    declare -i i ; i=0
-    while true; do
+    for (( i = 0; i <= $RETRIES; i++ )); do
         if doUpload "$1" "$2" "$3" "$4" "$5" ; then
-            break
-        elif [[ $i -eq $RETRIES ]]; then
-            echo -e "\nExceeded number of retries... Closing script."
-            failure_exit
-        else
-            sleep 3; let "i++"
-        fi
+            return
+        fi; sleep 3
     done
+    echo -e "\nExceeded number of retries... Closing script."
+    failure_exit
 }
 
 howmany() ( set -f; set -- $1; echo $# )
