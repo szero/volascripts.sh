@@ -203,10 +203,10 @@ doUpload() {
         "0" ) #Replace spaces with %20 so my terminal url finder can see links properly.
               file=$(basename "$file" | sed -r "s/ /%20/g" )
               printf "\nVola direct link:\n"
-              printf "%s/get/%s/%s\n\n" "$SERVER" "$file_id" "$file" ; return 0 ;;
+              printf "%s/get/%s/%s\n\n" "$SERVER" "$file_id" "$file" ; return $error ;;
         "6" ) failure_exit "\nRoom with ID of $ROOM doesn't exist! Closing script.\n" ;;
-        "22") skip "\nServer error. Usually caused by gateway timeout.\n" ; return 2 ;;
-        *   ) skip "\nError nr %s: Upload failed!\n" "$error" ; return 2;;
+        "22") skip "\nServer error. Usually caused by gateway timeout.\n" ; return $error ;;
+        *   ) skip "\nError nr ${error}: Upload failed!\n" ; return $error;;
     esac
 }
 
