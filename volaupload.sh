@@ -39,7 +39,7 @@ while true; do
                 if [[ "$2" =~ $pe ]]; then
                     ROOM="${BASH_REMATCH[0]}"
                 else
-                    echo -e "\nSorry my dude, but your room ID doesn't match Volafile's format!"
+                    echo -e "\nSorry my dude, but your room ID doesn't match Volafile's format!" >&2
                     exit 2
                 fi
             fi ; shift 2 ;;
@@ -48,8 +48,10 @@ while true; do
         -p | --password) PASSWORD="$2" ; shift 2 ;;
         -a | --upload-as) RENAMES="${RENAMES}${2}$IFS" ; shift 2 ;;
         -t | --retries) RETRIES="$2"
-            if [[ $RETRIES -lt 0 ]]; then
-                echo -e "\nCan't set negative number of retries my dude."
+            re="^[0-9]$"
+            if ! [[ "$RETRIES" =~ $re ]] || [[ "$RETRIES" -lt 0 ]]; then
+                echo -e "\nYou wanted to set negative number of retries or ..." >&2
+                echo -e "... exceeded maximum retry count.\n" >&2
                 exit 3
             fi ; shift 2 ;;
         -w | --watch) WATCHING="true" ; shift ;;
@@ -86,7 +88,8 @@ print_help() {
     echo -e "       volaupload.sh -r BEPPi file1.jpg file2.png -a funny.jpg -a nasty.png"
     echo -e "   First occurence of -a parameter always renames first given file and so on.\n"
     echo -e "-t, --retries <number>"
-    echo -e "   Specify number of retries when upload fails. Defaults to 3 retries.\n"
+    echo -e "   Specify number of retries when upload fails. Defaults to 3."
+    echo -e "   You can't retry more than 9 times.\n"
     echo -e "-w, --watch <directory>"
     echo -e "   Makes your script to watch over specific directory. Every file added"
     echo -e "   to that directory will be uploaded to Volafile. (To exit press Ctrl+Z)\n"
@@ -94,15 +97,23 @@ print_help() {
 }
 
 bad_arg() {
-    echo -e "\n${1}: This argument isn't a file or a directory. Skipping ..."
-    echo -e "Use -h or --help to check program usage.\n"
+    echo -e "\n${1}: This argument isn't a file or a directory. Skipping ..." >&2
+    echo -e "Use -h or --help to check program usage.\n" >&2
 }
 
 proper_exit() { rm -f "$COOKIE"; exit 0; }
-failure_exit() { rm -f "$COOKIE"; exit 1; }
+failure_exit() {
+    for i in "$@"; do
+        echo -e "$i" >&2
+    done; rm -f "$COOKIE"; exit 1;
+}
 #remove cookie on server error to get fresh session for next upload
-skip() { rm -f "$COOKIE"; }
-#Return non zero value when script gets interrupted with Ctrl+C and remove cookie
+skip() {
+    for i in "$@"; do
+        echo -e "$i" >&2
+    done; rm -f "$COOKIE"
+}
+#Return non zero value when script jgets interrupted with Ctrl+C and remove cookie
 trap failure_exit INT
 
 extract() {
@@ -160,16 +171,14 @@ doUpload() {
 
     #shellcheck disable=SC2181
     if [[ "$?" != "0" ]]; then
-        echo -e "\nLogin Error: You used wrong login and/or password my dude."
-        echo -e "You wanna login properly, so those sweet volastats can stack up!\n"
-        failure_exit
+        failure_exit "\nLogin Error: You used wrong login and/or password my dude." \
+                     "You wanna login properly, so those sweet volastats can stack up!\n"
     fi
 
     error=$(extract "$response" error)
 
     if [[ -n "$error" ]]; then
-        echo "Error: $error"
-        failure_exit
+        failure_exit "\nError: $error\n"
     fi
 
     server="https://$(extract "$response" server)"
@@ -195,20 +204,19 @@ doUpload() {
               file=$(basename "$file" | sed -r "s/ /%20/g" )
               printf "\nVola direct link:\n"
               printf "%s/get/%s/%s\n\n" "$SERVER" "$file_id" "$file" ; return 0 ;;
-        "6" ) printf "\nYou used wrong room ID! Closing script.\n\n" ; failure_exit ;;
-        "22") printf "\nServer error. Usually caused by gateway timeout.\n\n" ; skip ; return 2 ;;
-        *   ) printf "\nError nr %s: Upload failed!\n\n" "$error" ; skip ; return 2;;
+        "6" ) failure_exit "\nRoom with ID of $ROOM doesn't exist! Closing script.\n" ;;
+        "22") skip "\nServer error. Usually caused by gateway timeout.\n" ; return 2 ;;
+        *   ) skip "\nError nr %s: Upload failed!\n" "$error" ; return 2;;
     esac
 }
 
 tryUpload() {
-    for (( i = 0; i <= $RETRIES; i++ )); do
+    for (( i = 0; i <= RETRIES; i++ )); do
         if doUpload "$1" "$2" "$3" "$4" "$5" ; then
             return
-        fi; sleep 3
+        fi; sleep 5; echo -e "\nRetrying upload..."
     done
-    echo -e "\nExceeded number of retries... Closing script."
-    failure_exit
+    failure_exit "\nExceeded number of retries... Closing script."
 }
 
 howmany() ( set -f; set -- $1; echo $# )
@@ -217,12 +225,8 @@ argc=$(howmany "$TARGETS")
 
 if [[ $argc == 0 ]] || [[ -n $HELP ]]; then
     print_help
-elif [[ -z "$ROOM" ]] && [[ -z "$CALL" ]]; then
-    echo -e "\nCan't upload stuff to nowhere my dude! Specify proper room ID, pretty please!\n"
-    failure_exit
 elif [[ -z "$NICK" ]] && [[ -n "$PASSWORD" ]]; then
-    echo -e "\nSpecifying password, but not a username? What are you? A silly-willy?\n"
-    failure_exit
+    failure_exit "\nSpecifying password, but not a username? What are you? A silly-willy?\n"
 elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
     TARGET=$(echo "$TARGETS" | tr -d "\r")
     if [[ -d "$TARGET" ]]; then
