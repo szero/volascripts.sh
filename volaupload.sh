@@ -199,15 +199,16 @@ doUpload() {
         error="$?"
         file="$renamed"
     fi
-    case "$error" in #do something on error
+    case "$error" in
         "0" ) #Replace spaces with %20 so my terminal url finder can see links properly.
               file=$(basename "$file" | sed -r "s/ /%20/g" )
               printf "\nVola direct link:\n"
-              printf "%s/get/%s/%s\n\n" "$SERVER" "$file_id" "$file" ; return $error ;;
+              printf "%s/get/%s/%s\n\n" "$SERVER" "$file_id" "$file" ;;
         "6" ) failure_exit "\nRoom with ID of $ROOM doesn't exist! Closing script.\n" ;;
-        "22") skip "\nServer error. Usually caused by gateway timeout.\n" ; return $error ;;
-        *   ) skip "\nError nr ${error}: Upload failed!\n" ; return $error;;
+        "22") skip "\nServer error. Usually caused by gateway timeout.\n" ;;
+        *   ) skip "\nError nr ${error}: Upload failed!\n" ;;
     esac
+    return $error
 }
 
 tryUpload() {
@@ -245,8 +246,7 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
         if [[ -d "$t" ]]; then
             shopt -s globstar
             GLOBIGNORE=".:.."
-            for f in "${t}"/**
-            do
+            for f in "${t}"/** ; do
                 if [[ -f "$f" ]] && [[ -n "$1" ]]; then
                     tryUpload "${f}" "$ROOM" "$NICK" "$PASSWORD" "${1}.${f##*.}" ; shift
                 elif [[ -f "$f" ]]; then
