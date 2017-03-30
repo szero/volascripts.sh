@@ -22,13 +22,13 @@ Installation
 ------------
 To install on all UNIX-like systems for all users, type:
 
-    sudo wget https://raw.githubusercontent.com/Szero/volaupload.sh/master/volaupload.sh -O /usr/local/bin/volaupload
-    sudo chmod a+rx /usr/local/bin/volaupload
+    sudo wget https://rawgit.com/Szero/volaupload.sh/master/volaupload.sh -O /usr/local/bin/volaupload.sh
+    sudo chmod a+rx /usr/local/bin/volaupload.sh
 
 OR
 
-    sudo curl -L https://raw.githubusercontent.com/Szero/volaupload.sh/master/volaupload.sh -o /usr/local/bin/volaupload
-    sudo chmod a+rx /usr/local/bin/volaupload
+    sudo curl -L https://rawgit.com/Szero/volaupload.sh/master/volaupload.sh -o /usr/local/bin/volaupload.sh
+    sudo chmod a+rx /usr/local/bin/volaupload.sh
 
 Example usage
 -------------
