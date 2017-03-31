@@ -97,20 +97,20 @@ print_help() {
 }
 
 bad_arg() {
-    echo -e "\n${1}: This argument isn't a file or a directory. Skipping ..." >&2
-    echo -e "Use -h or --help to check program usage.\n" >&2
+    echo -e "\n\033[33;1m${1}\033[22m: This argument isn't a file or a directory. Skipping ...\033[0m\n"
+    echo -e "Use -h or --help to check program usage.\n"
 }
 
 proper_exit() { rm -f "$COOKIE"; exit 0; }
 failure_exit() {
     for i in "$@"; do
-        echo -e "$i" >&2
+        echo -e "\033[31m$i\033[0m" >&2
     done; rm -f "$COOKIE"; exit 1;
 }
 #remove cookie on server error to get fresh session for next upload
 skip() {
     for i in "$@"; do
-        echo -e "$i" >&2
+        echo -e "\033[31m$i\033[0m" >&2
     done; rm -f "$COOKIE"
 }
 #Return non zero value when script jgets interrupted with Ctrl+C and remove cookie
@@ -187,26 +187,29 @@ doUpload() {
 
     # -f option makes curl return error 22 on server responses with code 400 and higher
     if [[ -z "$renamed" ]]; then
-        echo -e "\n-- Uploading $file to $ROOM as $name\n"
+        echo -e "\n\033[32m<^> Uploading \033[1m$file\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m\n"
+        printf "\033[33m"
         curl --http2 -1 -f -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
             "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
     else
-        echo -e "\n-- Uploading $file to $ROOM as $name"
-        echo -e "-- File renamed to: ${renamed}\n"
-        curl --http2 -1 -f -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
+        echo -e "\n\033[32m<^> Uploading \033[1m$file\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m\n"
+        echo -e "-> File renamed to: \033[1m${renamed}\033[22m\n"
+        printf "\033[33m"
+        curl --http2 -1 -f -H "Origin: ${SERVER}" -F "file=@\"${file}\";fkilename=\"${renamed}\"" \
             "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
         file="$renamed"
     fi
+    printf "\033[0m"
     case "$error" in
         "0" ) #Replace spaces with %20 so my terminal url finder can see links properly.
               file=$(basename "$file" | sed -r "s/ /%20/g" )
-              printf "\nVola direct link:\n"
-              printf "%s/get/%s/%s\n\n" "$SERVER" "$file_id" "$file" ;;
-        "6" ) failure_exit "\nRoom with ID of $ROOM doesn't exist! Closing script.\n" ;;
+              printf "\n\033[35mVola direct link:\033[0m\n"
+              printf "\033[1m%s/get/%s/%s\033[0m\n\n" "$SERVER" "$file_id" "$file" ;;
+        "6" ) failure_exit "\nRoom with ID of \033[1m$ROOM\033[22m doesn't exist! Closing script.\n" ;;
         "22") skip "\nServer error. Usually caused by gateway timeout.\n" ;;
-        *   ) skip "\nError nr ${error}: Upload failed!\n" ;;
+        *   ) skip "\nError nr \033[1m${error}\033[22m: Upload failed!\n" ;;
     esac
     return $error
 }
