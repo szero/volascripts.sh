@@ -14,7 +14,7 @@ echo -e "\ninstalling volaupload.sh ...\n"
 curl --progress-bar -L "https://rawgit.com/Szero/volascripts.sh/master/volaupload.sh" -o "/usr/local/bin/volaupload.sh"
 chmod a+rx "/usr/local/bin/volaupload.sh"
 
-echo -e "\nInstalling volaupload.sh ...\n"
+echo -e "\nInstalling vid2vola.sh ...\n"
 curl --progress-bar -L "https://rawgit.com/Szero/volascripts.sh/master/vid2vola.sh" -o "/usr/local/bin/vid2vola.sh"
 chmod a+rx "/usr/local/bin/vid2vola.sh"
 
