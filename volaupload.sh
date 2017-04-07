@@ -26,9 +26,6 @@ SERVER="https://volafile.io"
 COOKIE="/tmp/cuckie"
 RETRIES="3"
 
-#Return non zero value when script gets interrupted with Ctrl+C and remove cookie
-trap failure_exit INT
-
 while true; do
     case "$1" in
         -h | --help) HELP="true" ; shift ;;
@@ -105,11 +102,16 @@ bad_arg() {
 }
 
 proper_exit() { rm -f "$COOKIE"; exit 0; }
+
 failure_exit() {
     for i in "$@"; do
         echo -e "\033[31m$i\033[0m" >&2
     done; rm -f "$COOKIE"; exit 4;
 }
+
+#Return non zero value when script gets interrupted with Ctrl+C and remove cookie
+trap failure_exit INT
+
 #remove cookie on server error to get fresh session for next upload
 skip() {
     for i in "$@"; do
