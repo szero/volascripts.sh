@@ -54,7 +54,7 @@ postVid() {
         DIR_LIST="${DIR_LIST}${dir}$IFS"
         mkdir -p "$dir"
         cd "$dir" || cleanup
-        echo -e "\n\033[32m<v> Downloading to \033[1m$HOME/$VID_DIR/$dir\033[22m ...\n"
+        echo -e "\n\033[32m<v> Downloading to \033[1m$HOME/$VID_DIR/$dir\033[22m\n"
         printf "\033[33m"
         youtube-dl --no-mtime -o "%(title)s.%(ext)s" \
         -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/webm" "$l" || cleanup

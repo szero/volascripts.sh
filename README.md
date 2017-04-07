@@ -7,7 +7,7 @@ a need of using the browser. I have only two right now but I'm open for suggesti
 volaupload.sh
 -------------
 
-This script allows you to upload files to [Volafile](https://volafile.io) 
+This script allows you to upload files to [Volafile](https://volafile.io)
 without using the browser. This is convenient, since it allows you to upload
 files with different names without a need to rename them beforehand.
 Use -h or --help command for full list of capabilities.
@@ -40,9 +40,9 @@ Installation
 ------------
 
 bash and coreutils packages are essential on most Linux distributions, so you should already have
-them. All you need to do is get `curl` and `ffmpeg` (ffmpeg is needed because sometimes to get best 
-audio and video with `youtube-dl` will download separate streams and mux them together) with your 
-distribution  package manager or by installing it directly from 
+them. All you need to do is get `curl` and `ffmpeg` (ffmpeg is needed because sometimes to get best
+audio and video with `youtube-dl` will download separate streams and mux them together) with your
+distribution's package manager or by installing them directly from
 [curl](https://curl.haxx.se/download.html) and [ffmpeg](http://ffmpeg.org/download.html) websites.
 `youtube-dl` will be installed with install script if you don't have it already.
 
