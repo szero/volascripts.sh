@@ -27,10 +27,10 @@ installing() {
 }
 
 if [[ $UID -ne 0 ]]; then
-    echo "Installing volascripts locally (for current user) ..."
-    dir="$HOME/\.local/bin"
+    echo -e "\nInstalling volascripts locally (for current user) ..."
+    dir="$HOME/.local/bin"
 else
-    echo "Installing volascripts globally (for all users) ..."
+    echo -e "\nInstalling volascripts globally (for all users) ..."
     dir="/usr/local/bin"
 fi
 
