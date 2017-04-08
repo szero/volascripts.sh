@@ -46,9 +46,15 @@ distribution's package manager or by installing them directly from
 [curl](https://curl.haxx.se/download.html) and [ffmpeg](http://ffmpeg.org/download.html) websites.
 `youtube-dl` will be installed with install script if you don't have it already.
 
-To install on all UNIX-like systems for all users, type:
+To install on all UNIX-like systems for current user (into ~/.local/bin directory) type:
+
+    curl -Lo- https://rawgit.com/Szero/volascripts.sh/master/install.sh | bash
+
+To install on all UNIX-like systems for all users (into /usr/local/bin directory) type:
 
     curl -Lo- https://rawgit.com/Szero/volascripts.sh/master/install.sh | sudo bash
+
+Restart your terminal to finalize installation process.
 
 Example usage
 -------------
