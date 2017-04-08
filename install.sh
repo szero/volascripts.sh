@@ -4,6 +4,7 @@ IFS=""
 
 add_path() {
 if ! [[ $PATH =~ $1 ]]; then
+    echo -e "\nAdding $1 to your PATH ..."
     rc="$HOME/.$(basename "$SHELL")rc"
     echo -e "export PATH=\"$PATH:$1\"" >> "$rc"
 fi
@@ -26,8 +27,8 @@ installing() {
 }
 
 if [[ $UID -ne 0 ]]; then
-    echo "Installing volascripts locally ..."
-    dir="$HOME/.local/bin"
+    echo "Installing volascripts locally (for current user) ..."
+    dir="$HOME/\.local/bin"
 else
     echo "Installing volascripts globally (for all users) ..."
     dir="/usr/local/bin"
