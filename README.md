@@ -40,20 +40,20 @@ Installation
 ------------
 
 bash and coreutils packages are essential on most Linux distributions, so you should already have
-them. All you need to do is to get `curl` and `ffmpeg` (ffmpeg is needed because sometimes to get
-best audio and video with `youtube-dl` will download separate streams and mux them together) with
-your distribution's package manager or by installing them directly from
+them. All you need to do is to get `curl` and `ffmpeg` (`ffmpeg` is needed because sometimes to get
+best audio and video `youtube-dl` will download separate streams and mux them together with
+`ffmpeg`) with your distribution's package manager or by installing them directly from
 [curl](https://curl.haxx.se/download.html) and [ffmpeg](http://ffmpeg.org/download.html) websites.
 [youtube-dl](https://github.com/rg3/youtube-dl) will be installed with install script if you don't
 have it already.
 
 To install on all UNIX-like systems for current user (into `~/.local/bin` directory) type:
 
-    curl -Lo- https://rawgit.com/Szero/volascripts.sh/master/install.sh | bash
+    curl -sLo- https://rawgit.com/Szero/volascripts.sh/master/install.sh | bash
 
 To install on all UNIX-like systems for all users (into `/usr/local/bin` directory) type:
 
-    curl -Lo- https://rawgit.com/Szero/volascripts.sh/master/install.sh | sudo bash
+    curl -sLo- https://rawgit.com/Szero/volascripts.sh/master/install.sh | sudo bash
 
 Restart your terminal to finalize installation process.
 

@@ -109,8 +109,9 @@ failure_exit() {
     done; rm -f "$COOKIE"; exit 4;
 }
 
-#Return non zero value when script gets interrupted with Ctrl+C and remove cookie
-trap failure_exit INT
+#Return non zero value when script gets interrupted with Ctrl+C or some error occurs
+# and remove the cookie
+trap failure_exit SIGINT SIGTERM
 
 #remove cookie on server error to get fresh session for next upload
 skip() {
@@ -223,12 +224,25 @@ doUpload() {
 }
 
 tryUpload() {
-    for (( i = 0; i <= RETRIES; i++ )); do
+    local i=0
+    while ((i<RETRIES)); do
         if doUpload "$1" "$2" "$3" "$4" "$5" ; then
             return
-        fi; sleep 5; echo -e "\nRetrying upload..."
+        fi
+        ((++i))
+        echo "Retrying upload after 5 seconds..."
+        sleep 5
+        wait
     done
     failure_exit "\nExceeded number of retries... Closing script."
+}
+
+getExtension() {
+    if [[ "${2##*.}" == "$2" ]]; then
+        printf "%s" "$1"
+    else
+        printf "%s" "${1%%.*}.${2##*.}"
+    fi
 }
 
 howmany() ( set -f; set -- $1; echo $# )
@@ -260,13 +274,13 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
             GLOBIGNORE=".:.."
             for f in "${t}"/** ; do
                 if [[ -f "$f" ]] && [[ -n "$1" ]]; then
-                    tryUpload "${f}" "$ROOM" "$NICK" "$PASSWORD" "${1}.${f##*.}" ; shift
+                    tryUpload "${f}" "$ROOM" "$NICK" "$PASSWORD" "$(getExtension "$1" "$f")" ; shift
                 elif [[ -f "$f" ]]; then
                     tryUpload "${f}" "$ROOM" "$NICK" "$PASSWORD"
                 fi
             done
         elif [[ -f "$t" ]] && [[ -n "$1" ]]; then
-            tryUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "${1}.${t##*.}" ; shift
+            tryUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "$(getExtension "$1" "$t")" ; shift
         elif [[ -f "$t" ]]; then
             tryUpload "$t" "$ROOM" "$NICK" "$PASSWORD"
         else
