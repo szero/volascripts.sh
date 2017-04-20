@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-if ! OPTS=$(getopt --options l:r:a:d:y \
-    --longoptions link:,room:,upload-as:,dir:,yes -n 'vid2vola.sh' -- "$@"); then
+if ! OPTS=$(getopt --options l:r:a:d:oy \
+    --longoptions link:,room:,upload-as:,dir:,audio-only,yes -n 'vid2vola.sh' -- "$@"); then
     echo -e "\nFiled parsing options.\n" ; exit 1
 fi
 
@@ -15,6 +15,7 @@ while true; do
         -r | --room ) ROOM="$2"; shift 2;;
         -a | --upload-as) ASS="${ASS}${2}$IFS"; shift 2;;
         -d | --dir) VID_DIR="$2"; shift 2;;
+        -o | --audio-only) A_ONLY="true"; shift ;;
         -y | --yes) YES="true"; shift;;
         --) shift;
             until [[ -z "$1" ]]; do
@@ -35,7 +36,6 @@ ask_remove() {
             * )  continue ;;
         esac
     done
-    printf "\n"
 }
 
 cleanup() {
@@ -47,17 +47,21 @@ cleanup() {
 }
 
 postVid() {
-    room="$1"
+    local room="$1"
     cd "$HOME/$VID_DIR" || exit
     for l in $LINKS ; do
-        dir=".tmp_${RANDOM}${RANDOM}"
+        local dir=".tmp_${RANDOM}${RANDOM}"
         DIR_LIST="${DIR_LIST}${dir}$IFS"
         mkdir -p "$dir"
         cd "$dir" || cleanup
         echo -e "\n\033[32m<v> Downloading to \033[1m$HOME/$VID_DIR/$dir\033[22m\n"
         printf "\033[33m"
-        youtube-dl --no-mtime -o "%(title)s.%(ext)s" \
-        -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/webm" "$l" || cleanup
+        if [[ $A_ONLY == "true" ]]; then
+            local arg="bestaoudio[ext=wav]/bestaudio[ext=mp3]/bestaudio[ext=ogg]/bestaudio"
+        else
+            local arg="bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/webm"
+        fi
+        youtube-dl --no-mtime -o "%(title)s.%(ext)s" -f "$arg" "$l" || cleanup
         printf "\033[0"
         #shellcheck disable=SC2012
         file="$(ls -t | head -qn 1)"

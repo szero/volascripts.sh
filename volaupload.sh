@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #shellcheck disable=SC2086
 
-if ! OPTS=$(getopt --options hu:r:cn:p:a:t:w \
---longoptions help,upload:,room:,call,nick:,password:,upload-as:,retries:,watch \
+if ! OPTS=$(getopt --options hu:r:cn:p:a:t:wm \
+--longoptions help,upload:,room:,call,nick:,password:,upload-as:,retries:,watch,most-new \
 -n 'volaupload.sh' -- "$@") ; then
     echo -e "\nFiled parsing options.\n" ; exit 1
 fi
@@ -55,6 +55,7 @@ while true; do
                 exit 3
             fi ; shift 2 ;;
         -w | --watch) WATCHING="true" ; shift ;;
+        -m | --most-new) NEWEST="true" ; shift ;;
         --) shift;
             until [[ -z "$1" ]]; do
                 TARGETS="${TARGETS}${1}$IFS" ; shift
@@ -93,6 +94,8 @@ print_help() {
     echo -e "-w, --watch <directory>"
     echo -e "   Makes your script to watch over specific directory. Every file added"
     echo -e "   to that directory will be uploaded to Volafile. (To exit press Ctrl+C)\n"
+    echo -e "-m, --most-new <directory>"
+    echo -e "   Uploads only the first file that was recently modified in specified directory\n"
     exit 0
 }
 
@@ -142,10 +145,10 @@ handleErrors() {
 }
 
 makeApiCall() {
-    method="$1"
-    query="$2"
-    name="$3"
-    password="$4"
+    local method="$1"
+    local query="$2"
+    local name="$3"
+    local password="$4"
     if [[ -n "$name" ]] && [[ -n "$password" ]]; then
         #session "memoization"
         if [[ ! -f "$COOKIE" ]]; then
@@ -167,11 +170,11 @@ makeApiCall() {
 }
 
 doUpload() {
-    file="$1"
-    room="$2"
-    name="$3"
-    pass="$4"
-    renamed="$5"
+    local file="$1"
+    local room="$2"
+    local name="$3"
+    local pass="$4"
+    local renamed="$5"
 
     if [[ -n "$name" ]] && [[ -n "$pass" ]]; then
         response=$(makeApiCall getUploadKey "name=$name&room=$room" "$name" "$pass")
@@ -182,30 +185,30 @@ doUpload() {
         name="Volaphile"
         response=$(makeApiCall getUploadKey "name=$name&room=$room")
     fi
-    handleErrors $?
+    handleErrors "$?"
 
-    error=$(extract "$response" error)
+    local error; error=$(extract "$response" error)
 
     if [[ -n "$error" ]]; then
         failure_exit "\nError: $error\n"
     fi
 
-    server="https://$(extract "$response" server)"
-    key=$(extract "$response" key)
-    file_id=$(extract "$response" file_id)
+    local server; server="https://$(extract "$response" server)"
+    local key; key=$(extract "$response" key)
+    local file_id; file_id=$(extract "$response" file_id)
 
     # -f option makes curl return error 22 on server responses with code 400 and higher
     if [[ -z "$renamed" ]]; then
         echo -e "\033[32m<^> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m\n"
         printf "\033[33m"
-        curl --http2 -1 -f -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
+        curl -1 -f -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
             "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
     else
         echo -e "\033[32m<^> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m\n"
         echo -e "-> File renamed to: \033[1m${renamed}\033[22m\n"
         printf "\033[33m"
-        curl --http2 -1 -f -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
+        curl -1 -f -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
             "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
         file="$renamed"
@@ -264,12 +267,16 @@ elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
 elif [[ $argc == 2 ]] && [[ -n "$CALL" ]]; then
     set -f ; set -- $TARGETS
     makeApiCall "$1" "$2"
-    handleErrors $?
+    handleErrors "$?"
     proper_exit
 elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
     set -- $RENAMES
     for t in $TARGETS ; do
-        if [[ -d "$t" ]]; then
+        if [[ -d "$t" ]] && [[ -n "$NEWEST" ]]; then
+            file=$(find "$t" -maxdepth 1 -type f -printf '%T@ %p\n' \
+                | sort -n | tail -n1 | cut -d' ' -f2-)
+            tryUpload "$file" "$ROOM" "$NICK" "$PASSWORD"
+        elif [[ -d "$t" ]]; then
             shopt -s globstar
             GLOBIGNORE=".:.."
             for f in "${t}"/** ; do
