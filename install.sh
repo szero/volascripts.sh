@@ -19,8 +19,8 @@ installing() {
     if [[ "$(bash --version | head -qn1 | cut -d' ' -f4 | cut -d'.' -f2)" -ge 3 ]]; then
         if [[ -z "$(which curlbar)" ]] ; then
             echo -e "\ncurlbar wasn't detected, installing ...\n"
-            curl --progress-bar -L "https://gist.githubusercontent.com/Szero/cd496ca43df4b871df75818ebcc40233/raw/c374e84bacedb1cd10c25bdae9b67ee4a8ef0691/curlbar" -o "$1/curlbar"
-            chmod a+rx "$1/youtube-dl"
+            curl --progress-bar -L "https://gist.githubusercontent.com/Szero/cd496ca43df4b871df75818ebcc40233/raw/c41a8863b33e0fc5645720be42f37d830d2b1f40/curlbar" -o "$1/curlbar"
+            chmod a+rx "$1/curlbar"
         fi
     else
         echo -e "\nYour bash version is incompatible with curlbar. Please install bash 4.3 or higher in order to use it.\n"

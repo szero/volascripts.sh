@@ -72,7 +72,7 @@ else
     cURL="curlbar"
 fi
 
-ask_remove() {
+ask_keep() {
     echo -e "Do you want to keep \033[1m$(basename "$1")\033[22m?"
     echo -e "File will be moved to \033[1m$VID_DIR\033[22m\n"
     while true; do
@@ -91,6 +91,7 @@ cleanup() {
         rm -rf "$d"
     done
     trap - SIGHUP SIGTERM EXIT
+    true # return prompt to default state if we interrupt our script
     exit
 }
 
@@ -141,12 +142,11 @@ youtube-dl --newline -o "%(title)s.%(ext)s" -f "$1" "$2" 2>&1 | \
     -e '/^\[ffmpeg\]/p'| \
 {
 re='[0-9\.%~]{1,4}'
-local -i i=10
 while IFS=' ' read -r -a line; do
     if [[ "${line[1]}" == "100%" ]]; then
-        printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G" \
+        printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G\n\n" \
         "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "${line[5]}" "${line[7]}"
-    elif [[ "${line[1]}" =~ $re ]] ; then
+    elif [[ "${line[1]}" =~ $re ]]; then
         local percent="${line[1]//%}"
         local width=$(( $(tput cols) - 50 ))
         local curpos=$((width + 6))
@@ -154,17 +154,14 @@ while IFS=' ' read -r -a line; do
         local bytes=$( bc <<< "scale=2; ${line[1]%*%} * $filesize / 100" )
         local on=$( bc <<< "$bytes * $width / $filesize" )
         local off=$( bc <<< "$width - $on" )
-        if (( i > 10 )); then
         printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G" \
         "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "${line[5]}" "${line[7]}"
-        i=0
-        fi
-    elif [[ ${line[1]} == "Requested" ]] ; then
+    elif [[ ${line[1]} == "Requested" ]]; then
         echo -e "Video and audio streams will be downloaded separately and merged together."
     elif [[ ${line[0]} == "ERROR:" ]]; then
-        echo -ne "\n\033[31m${line[@]:1}. Closing script.\033[0m"; return 1
+        echo -e "\n\033[31m${line[@]:1}. Closing script.\033[0m\n"; return 1
     else
-        echo -e "\n${line[@]:1}"
+        echo -e "${line[@]:1}"
     fi
     ((++i))
 done
@@ -185,13 +182,12 @@ postStuff() {
         DIR_LIST="${DIR_LIST}${dir}$IFS"
         mkdir -p "$dir"
         cd "$dir" || cleanup
-        echo -e "\n\033[32m<v> Downloading to \033[1m$TMP/$dir\033[22m"
+        echo -e "\n\033[32m<v> Downloading to \033[1m$TMP/$dir\033[22m\n"
         printf "\033[33m"
         ftype="$(getContentType "$l")"
         if [[ "$ftype" == "text/html" ]]; then
             youtube-dlBar "$arg" "$l"
         else
-            echo
             $cURL -L "$l" > "$(basename "$l")"
         fi
         if [[ "$?" -ne 0 ]]; then
@@ -218,7 +214,7 @@ postStuff() {
         -r "$ROOM" -n "$NICK" -p "$PASSWORD"  || cleanup
     if [[ -d "$VID_DIR" ]] ; then
         for f in $FILE_LIST ; do
-            ask_remove "$f"
+            ask_keep "$f"
         done
     fi
 }
@@ -228,7 +224,7 @@ trap cleanup SIGHUP SIGTERM SIGINT EXIT
 if [[ -n $HELP ]]; then
     print_help
 elif [[ -z "$LINKS" ]]; then
-    echo -e "\nMy dude, comon. You tried to download nothing." ; exit 1
+    echo -e "\nMy dude, comon. You tried to download nothing.\n" ; exit 1
 else
     postStuff
 fi
