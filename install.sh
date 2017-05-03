@@ -16,13 +16,22 @@ installing() {
         curl --progress-bar -L "https://yt-dl.org/downloads/latest/youtube-dl" -o "$1/youtube-dl"
         chmod a+rx "$1/youtube-dl"
     fi
+    if [[ "$(bash --version | head -qn1 | cut -d' ' -f4 | cut -d'.' -f2)" -ge 3 ]]; then
+        if [[ -z "$(which curlbar)" ]] ; then
+            echo -e "\ncurlbar wasn't detected, installing ...\n"
+            curl --progress-bar -L "https://gist.githubusercontent.com/Szero/cd496ca43df4b871df75818ebcc40233/raw/c374e84bacedb1cd10c25bdae9b67ee4a8ef0691/curlbar" -o "$1/curlbar"
+            chmod a+rx "$1/youtube-dl"
+        fi
+    else
+        echo -e "\nYour bash version is incompatible with curlbar. Please install bash 4.3 or higher in order to use it.\n"
+    fi
 
     echo -e "\nInstalling volaupload.sh ...\n"
     curl --progress-bar -L "https://rawgit.com/Szero/volascripts.sh/master/volaupload.sh" -o "$1/volaupload.sh"
     chmod a+rx "$1/volaupload.sh"
 
-    echo -e "\nInstalling vid2vola.sh ...\n"
-    curl --progress-bar -L "https://rawgit.com/Szero/volascripts.sh/master/vid2vola.sh" -o "$1/vid2vola.sh"
+    echo -e "\nInstalling stuff2vola.sh ...\n"
+    curl --progress-bar -L "https://rawgit.com/Szero/volascripts.sh/master/stuff2vola.sh" -o "$1/stuff2vola.sh"
     chmod a+rx "$1/vid2vola.sh"
 }
 
