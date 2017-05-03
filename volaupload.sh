@@ -103,7 +103,7 @@ else
     cURL="curlbar"
 fi
 
-if [[ -n "$ROOM" ]]; then
+if [[ -n "$ROOM" ]] && [[ -z "$HELP" ]]; then
     roomHTML=$(curl -fsLH "Referer: https://volafile.org" -H "Accept: text/values" \
         "https://volafile.org/r/$ROOM")
     handleErrors "$?"
