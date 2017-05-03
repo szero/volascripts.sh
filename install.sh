@@ -32,7 +32,7 @@ installing() {
 
     echo -e "\nInstalling stuff2vola.sh ...\n"
     curl --progress-bar -L "https://rawgit.com/Szero/volascripts.sh/master/stuff2vola.sh" -o "$1/stuff2vola.sh"
-    chmod a+rx "$1/vid2vola.sh"
+    chmod a+rx "$1/stuff2vola.sh"
 }
 
 if [[ $UID -ne 0 ]]; then
