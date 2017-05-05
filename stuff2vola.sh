@@ -212,7 +212,7 @@ postStuff() {
     printf "\n"
     printf "%s" "$ARG_PREP" | xargs -d "$IFS" volaupload.sh \
         -r "$ROOM" -n "$NICK" -p "$PASSWORD"  || cleanup
-    if [[ -d "$VID_DIR" ]] ; then
+    if [[ ! -d "$VID_DIR" ]] ; then
         for f in $FILE_LIST ; do
             ask_keep "$f"
         done

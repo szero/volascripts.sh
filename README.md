@@ -43,7 +43,7 @@ Prerequsites
 ### Optional:
 
 - [inotify-tools](https://github.com/rvoicilas/inotify-tools/wiki)
-    * This one is needed just to use --watch commad in volaupload.sh script.
+    * This one is needed just to use --watch command in volaupload.sh script.
       Check the script source and decide if you find this usefull.
         
 Installation & Updating
