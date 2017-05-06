@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155,SC2145
+# shellcheck disable=SC2155,SC2145,SC2162
 
 if ! OPTS=$(getopt --options hl:r:n:p:a:d:o \
     --longoptions help,link:,room:,nick:,password:,upload-as:,dir:,audio-only \
@@ -36,7 +36,6 @@ while true; do
 done
 
 TMP="/tmp"
-FIFO="content-type"
 
 print_help() {
     echo -e "\nstuff2vola.sh help page\n"
@@ -73,12 +72,20 @@ else
 fi
 
 ask_keep() {
-    echo -e "Do you want to keep \033[1m$(basename "$1")\033[22m?"
-    echo -e "File will be moved to \033[1m$VID_DIR\033[22m\n"
+    echo -e "Do you want to keep  \033[1m$(basename "$1")\033[22m?"
     while true; do
-        printf "\033[32m[Y]es\033[0m/\033[31m[N]o\033[0m) " ; read -r yn
+        printf "\033[32m[Y]es\033[0m/\033[31m[N]o\033[0m) "; read -e yn
         case "$yn" in
-            [Yy]*  ) mv "$1" "$VID_DIR" ; break;;
+            [Yy]*  ) local path2stuff;
+                while true; do
+                    printf "\033[32mDirectory name:\033[0m "; read -e path2stuff
+                    path2stuff="${path2stuff/#\~/$HOME}"
+                    if [[ -d "$path2stuff" ]]; then
+                        mv -f "$1" "$path2stuff" ; return
+                    else
+                        echo -n "You didn't specify a valid directory!"; continue
+                    fi
+                done ;;
             [Nn]*  ) break ;;
             * )  continue ;;
         esac
@@ -96,10 +103,10 @@ cleanup() {
 }
 
 getContentType(){
-    rm -f "$FIFO"
+    local FIFO="content-type"
     mkfifo "$FIFO"
-    local filetype
     local curl_pid
+
     ( set +e
     curl -sLI "$1" >> "$FIFO"
     echo >> "$FIFO"
@@ -117,7 +124,8 @@ getContentType(){
         "$FIFO" | \
     {
     trap cleanup ERR
-    lastredirect=1
+    local lastredirect=1
+    local filetype
     while IFS=' ' read -r -a line; do
         if [[ "${line[1]}" == "200" ]]; then
             lastredirect=0
@@ -172,7 +180,7 @@ return 0
 
 postStuff() {
     if [[ $A_ONLY == "true" ]]; then
-        local arg="bestaudio/wav/mp4/ogg/m4a/webm"
+        local arg="bestaudio/wav/mp3/m4a/ogg/webm"
     else
         local arg="bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4/webm"
     fi
