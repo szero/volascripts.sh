@@ -103,14 +103,6 @@ else
     cURL="curlbar"
 fi
 
-if [[ -n "$ROOM" ]] && [[ -z "$HELP" ]]; then
-    roomHTML=$(curl -fsLH "Referer: https://volafile.org" -H "Accept: text/values" \
-        "https://volafile.org/r/$ROOM")
-    handleErrors "$?"
-    ROOM=$(echo "$roomHTML" | grep -oP '\"room_id\":\"[a-zA-Z0-9-_]+\"' | \
-        sed 's/\(\"room_id\"\:\|\"\)//g')
-fi
-
 print_help() {
     echo -e "\nvolaupload.sh help page\n"
     echo -e "-h, --help"
@@ -145,6 +137,7 @@ print_help() {
     echo -e "   Uploads only the first file that was recently modified in specified directory\n"
     exit 0
 }
+
 
 bad_arg() {
     echo -e "\n\033[33;1m${1}\033[22m: This argument isn't a file or a directory. Skipping ...\033[0m\n"
@@ -218,14 +211,14 @@ doUpload() {
 
     # -f option makes curl return error 22 on server responses with code 400 and higher
     if [[ -z "$renamed" ]]; then
-        echo -e "\033[32m<^> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m\n"
+        echo -e "\033[32m<^> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m"
         printf "\033[33m" 2>&1 #curlbar prints stuff to stderr so we change color for stdout and stderr
         $cURL -1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
             "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
     else
         echo -e "\033[32m<^> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m\n"
-        echo -e "-> File renamed to: \033[1m${renamed}\033[22m\n"
+        echo -e "-> File renamed to: \033[1m${renamed}\033[22m"
         printf "\033[33m" 2>&1
         $cURL -1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
             "${server}/upload?room=${room}&key=${key}" 1>/dev/null
@@ -234,10 +227,13 @@ doUpload() {
     fi
     printf "\033[0m"
     case $error in
-        0 ) #Replace spaces with %20 so my terminal url finder can see links properly.
-              file=$(basename "$file" | sed -r "s/ /%20/g" )
-              printf "\n\033[35mVola direct link:\033[0m\n"
-              printf "\033[1m%s/get/%s/%s\033[0m\n\n" "$SERVER" "$file_id" "$file" ;;
+        0 | 102) #Replace spaces with %20 so my terminal url finder can see links properly.
+            if [[ $error -eq 102 ]]; then
+                printf "\033[33mFile was too small to make me bothered with printing the progress bar.\033[0m\n"
+            fi
+            file=$(basename "$file" | sed -r "s/ /%20/g" )
+            printf "\n\033[35mVola direct link:\033[0m\n"
+            printf "\033[1m%s/get/%s/%s\033[0m\n\n" "$SERVER" "$file_id" "$file" ;;
         1 ) skip "Some strange TLS error, continuing." ;;
         6 ) failure_exit "\nRoom with ID of \033[1m$ROOM\033[22m doesn't exist! Closing script.\n" ;;
         22) skip "\nServer error. Usually caused by gateway timeout.\n" ;;
@@ -249,7 +245,9 @@ doUpload() {
 tryUpload() {
     local i=0
     while ((i<RETRIES)); do
-        if doUpload "$1" "$2" "$3" "$4" "$5" ; then
+        doUpload "$1" "$2" "$3" "$4" "$5"
+        local code="$?"
+        if [[ $code -eq 0 ]] || [[ $code -eq 1 ]] || [[ $code -eq 102 ]] ; then
             return
         fi
         ((++i))
@@ -272,9 +270,17 @@ howmany() ( set -f; set -- $1; echo $# )
 declare -i argc
 argc=$(howmany "$TARGETS")
 
-if [[ $argc == 0 ]] || [[ -n $HELP ]]; then
+if [[ $argc -eq 0 ]] || [[ -n $HELP ]]; then
     print_help
-elif [[ -z "$NICK" ]] && [[ -n "$PASSWORD" ]]; then
+fi
+if [[ -n "$ROOM" ]] ; then
+    roomHTML=$(curl -fsLH "Referer: https://volafile.org" -H "Accept: text/values" \
+        "https://volafile.org/r/$ROOM")
+    handleErrors "$?"
+    ROOM=$(echo "$roomHTML" | grep -oP '\"room_id\":\"[a-zA-Z0-9-_]+\"' | \
+        sed 's/\(\"room_id\"\:\|\"\)//g')
+fi
+if [[ -z "$NICK" ]] && [[ -n "$PASSWORD" ]]; then
     failure_exit "\nSpecifying password, but not a username? What are you? A silly-willy?\n"
 elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
     if [[ -z "$(which inotifywait)" ]]; then

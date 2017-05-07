@@ -19,7 +19,7 @@ installing() {
     if [[ "$(bash --version | head -qn1 | cut -d' ' -f4 | cut -d'.' -f2)" -ge 3 ]]; then
         if [[ -z "$(which curlbar)" ]] ; then
             echo -e "\ncurlbar wasn't detected, installing ...\n"
-            curl --progress-bar -L "https://gist.githubusercontent.com/Szero/cd496ca43df4b871df75818ebcc40233/raw/c41a8863b33e0fc5645720be42f37d830d2b1f40/curlbar" -o "$1/curlbar"
+            curl --progress-bar -L "https://gist.githubusercontent.com/Szero/cd496ca43df4b871df75818ebcc40233/raw/9eb23aa9877858720797e10fbfe2da41f9964586/curlbar" -o "$1/curlbar"
             chmod a+rx "$1/curlbar"
         fi
     else

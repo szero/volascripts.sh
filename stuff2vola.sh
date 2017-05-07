@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155,SC2145,SC2162
+# shellcheck disable=SC2155,SC2162
 
 if ! OPTS=$(getopt --options hl:r:n:p:a:d:o \
     --longoptions help,link:,room:,nick:,password:,upload-as:,dir:,audio-only \
@@ -72,7 +72,7 @@ else
 fi
 
 ask_keep() {
-    echo -e "Do you want to keep  \033[1m$(basename "$1")\033[22m?"
+    echo -e "Do you want to keep \033[1m$(basename "$1")\033[22m?"
     while true; do
         printf "\033[32m[Y]es\033[0m/\033[31m[N]o\033[0m) "; read -e yn
         case "$yn" in
@@ -167,11 +167,11 @@ while IFS=' ' read -r -a line; do
     elif [[ ${line[1]} == "Requested" ]]; then
         echo -e "Video and audio streams will be downloaded separately and merged together."
     elif [[ ${line[0]} == "ERROR:" ]]; then
+        # shellcheck disable=SC2145
         echo -e "\n\033[31m${line[@]:1}. Closing script.\033[0m\n"; return 1
     else
         echo -e "${line[@]:1}"
     fi
-    ((++i))
 done
 IFS="$(printf '\r')"
 return 0
@@ -180,7 +180,7 @@ return 0
 
 postStuff() {
     if [[ $A_ONLY == "true" ]]; then
-        local arg="bestaudio/wav/mp3/m4a/ogg/webm"
+        local arg="wav/mp3/m4a/ogg/webm"
     else
         local arg="bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4/webm"
     fi
