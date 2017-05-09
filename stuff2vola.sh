@@ -76,17 +76,17 @@ ask_keep() {
     while true; do
         printf "\033[32m[Y]es\033[0m/\033[31m[N]o\033[0m) "; read -e yn
         case "$yn" in
-            [Yy]*  ) local path2stuff;
+            [Yy]*) local path2stuff;
                 while true; do
                     printf "\033[32mDirectory name:\033[0m "; read -e path2stuff
                     path2stuff="${path2stuff/#\~/$HOME}"
                     if [[ -d "$path2stuff" ]]; then
                         mv -f "$1" "$path2stuff" ; return
                     else
-                        echo -n "You didn't specify a valid directory!"; continue
+                        echo "You didn't specify a valid directory!"; continue
                     fi
                 done ;;
-            [Nn]*  ) break ;;
+            [Nn]*) break ;;
             * )  continue ;;
         esac
     done
@@ -190,7 +190,7 @@ postStuff() {
         DIR_LIST="${DIR_LIST}${dir}$IFS"
         mkdir -p "$dir"
         cd "$dir" || cleanup
-        echo -e "\n\033[32m<v> Downloading to \033[1m$TMP/$dir\033[22m\n"
+        echo -e "\n\033[32m<v> Downloading to \033[1m$TMP/$dir\033[22m"
         printf "\033[33m"
         ftype="$(getContentType "$l")"
         if [[ "$ftype" == "text/html" ]]; then

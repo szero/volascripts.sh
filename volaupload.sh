@@ -270,15 +270,22 @@ howmany() ( set -f; set -- $1; echo $# )
 declare -i argc
 argc=$(howmany "$TARGETS")
 
-if [[ $argc -eq 0 ]] || [[ -n $HELP ]]; then
+if [[ -n "$HELP" ]]; then
     print_help
+elif [[ $argc -eq 0 ]]; then
+    failure_exit "\nYou didn't specify any files that can be uploaded!\n"
+elif [[ $argc == 2 ]] && [[ -n "$CALL" ]]; then
+    set -f ; set -- $TARGETS
+    makeApiCall "$1" "$2"
+    handleErrors "$?"
+    proper_exit
 fi
 if [[ -n "$ROOM" ]] ; then
-    roomHTML=$(curl -fsLH "Referer: https://volafile.org" -H "Accept: text/values" \
-        "https://volafile.org/r/$ROOM")
-    handleErrors "$?"
-    ROOM=$(echo "$roomHTML" | grep -oP '\"room_id\":\"[a-zA-Z0-9-_]+\"' | \
-        sed 's/\(\"room_id\"\:\|\"\)//g')
+    ROOM=$(curl -fsLH "Referer: $SERVER" -H "Accept: text/values" \
+        "https://volafile.org/r/$ROOM" | grep -oP "\"room_id\s*\"\s*:\s*\"\K[a-zA-Z0-9-_]+(?=\",)")
+    if [[ "$?" -ne 0 ]]; then
+        failure_exit "\nRoom you specified doesn't exist, or Vola is busted for good this time!\n"
+    fi
 fi
 if [[ -z "$NICK" ]] && [[ -n "$PASSWORD" ]]; then
     failure_exit "\nSpecifying password, but not a username? What are you? A silly-willy?\n"
@@ -295,11 +302,6 @@ elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
         else
         failure_exit "\nYou have to specify the directory that can be watched.\n"
     fi
-elif [[ $argc == 2 ]] && [[ -n "$CALL" ]]; then
-    set -f ; set -- $TARGETS
-    makeApiCall "$1" "$2"
-    handleErrors "$?"
-    proper_exit
 elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
     set -- $RENAMES
     for t in $TARGETS ; do
