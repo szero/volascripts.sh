@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2155,SC2162
 
-if ! OPTS=$(getopt --options hl:r:n:p:a:d:o \
-    --longoptions help,link:,room:,nick:,password:,upload-as:,dir:,audio-only \
+if ! OPTS=$(getopt --options hl:r:n:p:a:d:og \
+    --longoptions help,link:,room:,nick:,password:,upload-as:,dir:,audio-only,purge \
     -n 'vid2vola.sh' -- "$@"); then
     echo -e "\nFiled parsing options.\n" ; exit 1
 fi
@@ -27,6 +27,7 @@ while true; do
         -a | --upload-as) ASS="${ASS}${2}$IFS"; shift 2;;
         -d | --dir) VID_DIR="$2"; shift 2;;
         -o | --audio-only) A_ONLY="true"; shift ;;
+        -g | --purge) PURGE="true"; shift ;;
         --) shift;
             until [[ -z "$1" ]]; do
                 LINKS="${LINKS}${1}$IFS" ; shift
@@ -50,7 +51,7 @@ print_help() {
     echo -e "-n, --nick <name>"
     echo -e "   Specify name, under which your file(s) will be uploaded.\n"
     echo -e "-p, -pass <password>"
-    echo -e "   Specify your account password. If you upload as logged user, file"
+    echo -e "   Set your account password. If you upload as logged user, file"
     echo -e "   uploads will count towards your file stats on Volafile."
     echo -e "   See https://volafile.org/user/<your_username>\n"
     echo -e "-a, --upload-as <renamed_file>"
@@ -62,6 +63,8 @@ print_help() {
     echo -e "-o, --audio-only"
     echo -e "   If file you want forward to Volafile is a video, this option will strip video"
     echo -e "   stream from it and upload only audio stream.\n"
+    echo -e "-g, --pruge"
+    echo -e "   Set this if you don't want to keep any downloaded files.\n"
     exit 0
 }
 
@@ -74,7 +77,7 @@ fi
 ask_keep() {
     echo -e "Do you want to keep \033[1m$(basename "$1")\033[22m?"
     while true; do
-        printf "\033[32m[Y]es\033[0m/\033[31m[N]o\033[0m) "; read -e yn
+        local yn; printf "\033[32m[Y]es\033[0m/\033[31m[N]o\033[0m) "; read -e yn
         case "$yn" in
             [Yy]*) local path2stuff;
                 while true; do
@@ -102,13 +105,32 @@ cleanup() {
     exit
 }
 
+failure_exit() {
+    local failure
+    for failure in "$@"; do
+        echo -e "\033[31m$failure\033[0m" >&2
+    done; cleanup;
+}
+
+skip() {
+    printf "\033[31m"
+    case $1 in
+        0 ) printf "\033[0m"; return 0 ;;
+        6 ) echo -e "\n$2: This link is busted. Try with a valid one.\033[0m\n" >&2; return 1;;
+        * ) echo -e "\ncURL error of code $1 happend.\033[0m\n" >&2; return 1 ;;
+    esac
+}
+
+
 getContentType(){
     local FIFO="content-type"
-    mkfifo "$FIFO"
+    local status="status-file"
     local curl_pid
+    mkfifo "$FIFO"
 
     ( set +e
     curl -sLI "$1" >> "$FIFO"
+    echo "$?" >> "$status"
     echo >> "$FIFO"
     sync
     ) &
@@ -123,7 +145,7 @@ getContentType(){
         -e "/^content-type:/p" \
         "$FIFO" | \
     {
-    trap cleanup ERR
+    trap cleanup ERR SIGINT
     local lastredirect=1
     local filetype
     while IFS=' ' read -r -a line; do
@@ -139,6 +161,7 @@ getContentType(){
     kill -9 "$curl_pid" 2>/dev/null || true
     echo "$filetype"
     }
+    return "$(cat $status)"
 }
 
 youtube-dlBar() {
@@ -190,23 +213,27 @@ postStuff() {
         DIR_LIST="${DIR_LIST}${dir}$IFS"
         mkdir -p "$dir"
         cd "$dir" || cleanup
+        ftype="$(getContentType "$l")"
+        local error="$?"
+        skip "$error" "$l" || continue
         echo -e "\n\033[32m<v> Downloading to \033[1m$TMP/$dir\033[22m"
         printf "\033[33m"
-        ftype="$(getContentType "$l")"
         if [[ "$ftype" == "text/html" ]]; then
             youtube-dlBar "$arg" "$l"
         else
             $cURL -L "$l" > "$(basename "$l")"
         fi
-        if [[ "$?" -ne 0 ]]; then
-            cleanup
-        fi
-        printf "\033[0"
+        error="$?"
+        printf "\033[0\n"
+        skip "$error" "$l" || continue
         #shellcheck disable=SC2012
         file="$(ls -t | head -qn 1)"
         FILE_LIST="${FILE_LIST}${dir}/${file}$IFS"
         cd ..
     done
+    if [[ ${#FILE_LIST} -eq 0 ]]; then
+        failure_exit "Any of your links weren't valid. Closing the party.\n"
+    fi
     #shellcheck disable=SC2086
     set -- $ASS
     for f in $FILE_LIST ; do
@@ -217,13 +244,20 @@ postStuff() {
         fi
 
     done
-    printf "\n"
     printf "%s" "$ARG_PREP" | xargs -d "$IFS" volaupload.sh \
         -r "$ROOM" -n "$NICK" -p "$PASSWORD"  || cleanup
-    if [[ ! -d "$VID_DIR" ]] ; then
-        for f in $FILE_LIST ; do
-            ask_keep "$f"
-        done
+    if [[ -n "$PURGE" ]]; then
+        cleanup
+    else
+        if [[ -d "$VID_DIR" ]] ; then
+            for f in $FILE_LIST ; do
+                mv -f "$f" "$VID_DIR"
+            done
+        else
+            for f in $FILE_LIST ; do
+                ask_keep "$f"
+            done
+        fi
     fi
 }
 
