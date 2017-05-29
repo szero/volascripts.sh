@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2155,SC2162
 
+#shellcheck disable=SC2034
+__STUFF2VOLASH_VERSION__=1.0
+
 if ! OPTS=$(getopt --options hl:r:n:p:a:d:og \
     --longoptions help,link:,room:,nick:,password:,upload-as:,dir:,audio-only,purge \
     -n 'vid2vola.sh' -- "$@"); then
@@ -13,7 +16,7 @@ fi
 ############################################################################################
 
 
-IFS="$(printf '\r')"
+IFS=$'\r'
 
 eval set -- "$OPTS"
 
@@ -113,9 +116,9 @@ failure_exit() {
 }
 
 skip() {
-    printf "\033[31m"
+    printf "\033[31m" >&2
     case $1 in
-        0 ) printf "\033[0m"; return 0 ;;
+        0 ) printf "\033[0m" >&2; return 0 ;;
         6 ) echo -e "\n$2: This link is busted. Try with a valid one.\033[0m\n" >&2; return 1;;
         * ) echo -e "\ncURL error of code $1 happend.\033[0m\n" >&2; return 1 ;;
     esac
@@ -148,7 +151,7 @@ getContentType(){
     trap cleanup ERR SIGINT
     local lastredirect=1
     local filetype
-    while IFS=' ' read -r -a line; do
+    while local IFS=' '; read -r -a line; do
         if [[ "${line[1]}" == "200" ]]; then
             lastredirect=0
         fi
@@ -172,12 +175,18 @@ youtube-dl --newline -o "%(title)s.%(ext)s" -f "$1" "$2" 2>&1 | \
     -e '/^ERROR:/p' \
     -e '/^\[ffmpeg\]/p'| \
 {
-re='[0-9\.%~]{1,4}'
-while IFS=' ' read -r -a line; do
+local re='[0-9\.%~]{1,4}'
+local SLEEP_PID=-1
+local speed
+local eta
+local IFS=' '
+while  read -r -a line; do
     if [[ "${line[1]}" == "100%" ]]; then
         printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G\n\n" \
-        "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "${line[5]}" "${line[7]}"
+        "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "$speed" "$eta"
     elif [[ "${line[1]}" =~ $re ]]; then
+        speed="${line[5]}"
+        eta="${line[7]}"
         local percent="${line[1]//%}"
         local width=$(( $(tput cols) - 50 ))
         local curpos=$((width + 6))
@@ -185,8 +194,12 @@ while IFS=' ' read -r -a line; do
         local bytes=$( bc <<< "scale=2; ${line[1]%*%} * $filesize / 100" )
         local on=$( bc <<< "$bytes * $width / $filesize" )
         local off=$( bc <<< "$width - $on" )
-        printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G" \
-        "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "${line[5]}" "${line[7]}"
+        if [[ -z "$(ps -hp "$SLEEP_PID" 2>/dev/null)" ]]; then
+            sleep 1 &
+            SLEEP_PID="$!"
+            printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G" \
+            "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "$speed" "$eta"
+        fi
     elif [[ ${line[1]} == "Requested" ]]; then
         echo -e "Video and audio streams will be downloaded separately and merged together."
     elif [[ ${line[0]} == "ERROR:" ]]; then
@@ -196,16 +209,15 @@ while IFS=' ' read -r -a line; do
         echo -e "${line[@]:1}"
     fi
 done
-IFS="$(printf '\r')"
 return 0
 }
 }
 
 postStuff() {
     if [[ $A_ONLY == "true" ]]; then
-        local arg="wav/mp3/m4a/ogg/webm"
+        local arg="wav/mp3/m4a/ogg"
     else
-        local arg="bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4/webm"
+        local arg="bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/mp4/webm"
     fi
     cd "$TMP" || cleanup
     for l in $LINKS ; do
@@ -216,7 +228,7 @@ postStuff() {
         ftype="$(getContentType "$l")"
         local error="$?"
         skip "$error" "$l" || continue
-        echo -e "\n\033[32m<v> Downloading to \033[1m$TMP/$dir\033[22m"
+        echo -e "\033[32m<v> Downloading to \033[1m$TMP/$dir\033[22m"
         printf "\033[33m"
         if [[ "$ftype" == "text/html" ]]; then
             youtube-dlBar "$arg" "$l"
@@ -226,9 +238,10 @@ postStuff() {
         error="$?"
         printf "\033[0\n"
         skip "$error" "$l" || continue
-        #shellcheck disable=SC2012
-        file="$(ls -t | head -qn 1)"
-        FILE_LIST="${FILE_LIST}${dir}/${file}$IFS"
+        file=$(find -maxdepth 1 -regextype posix-egrep -regex ".+\.[a-zA-Z0-9?]{2,20}" -printf "%f")
+        if [[ -n "$file" ]]; then
+            FILE_LIST="${FILE_LIST}${dir}/${file}$IFS"
+        fi
         cd ..
     done
     if [[ ${#FILE_LIST} -eq 0 ]]; then

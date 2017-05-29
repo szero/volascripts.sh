@@ -14,7 +14,7 @@ Use -h or --help command for full list of capabilities. Check insides of this sc
 for information on how to preset your room, nick and password.
 
 stuff2vola.sh (vid2vola.sh before)
--------------------------------
+----------------------------------
 
 Are you a fan of redundancy and don't want to post links to stuff in a chat like a pleb?
 Than this is a script for you. It will download most content from the web and upload it to
@@ -43,7 +43,7 @@ Prerequsites
 ### Optional:
 
 - [inotify-tools](https://github.com/rvoicilas/inotify-tools/wiki)
-    * This one is needed just to use --watch command in volaupload.sh script.
+    * This one is needed just for --watch command in volaupload.sh script.
       Check the script source and decide if you find this usefull.
         
 Installation & Updating
@@ -51,7 +51,7 @@ Installation & Updating
 
 bash and coreutils packages are essential on most Linux distributions, so you should already have
 them. All you need to do is to get `curl` and `ffmpeg` with your distribution's package manager.
-(`ffmpeg` is needed because sometimes to get best audio and video `youtube-dl` will download 
+(`ffmpeg` is needed because sometimes to get best audio and video, `youtube-dl` will download 
 separate streams and mux them together with `ffmpeg`)
 [youtube-dl](https://github.com/rg3/youtube-dl) and
 [curlbar](https://gist.github.com/Szero/cd496ca43df4b871df75818ebcc40233) will be 

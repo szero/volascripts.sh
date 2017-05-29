@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 #shellcheck disable=SC2086
 
+#shellcheck disable=SC2034
+__VOLAUPLOADSH_VERSION__=1.0
+
 if ! OPTS=$(getopt --options hu:r:cn:p:a:t:wm \
     --longoptions help,upload:,room:,call,nick:,password:,upload-as:,retries:,watch,most-new \
     -n 'volaupload.sh' -- "$@") ; then
@@ -19,7 +22,7 @@ fi
 #carrige return so we can iterate over the TARGETS variable without
 #a fear of splitting filenames.
 
-IFS="$(printf '\r')"
+IFS=$'\r'
 eval set -- "$OPTS"
 
 SERVER="https://volafile.org"
@@ -31,17 +34,10 @@ while true; do
         -h | --help) HELP="true" ; shift ;;
         -u | --upload) TARGETS="${TARGETS}${2}$IFS" ; shift 2 ;;
         -r | --room)
-            p="https?://volafile.org/r/([a-zA-Z0-9_-]{3,20}$)"
-            if [[ "$2" =~ $p ]]; then
-                ROOM="${BASH_REMATCH[1]}"
+            if [[ "$2" =~ [a-zA-Z0-9_-]{3,20}$ ]]; then
+                ROOM="${BASH_REMATCH[0]}"
             else
-                pe="^[a-zA-Z0-9_-]{3,20}$"
-                if [[ "$2" =~ $pe ]]; then
-                    ROOM="${BASH_REMATCH[0]}"
-                else
-                    echo -e "\n\033[31mSorry my dude, but your room ID doesn't match Volafile's format!\033[31m\n" >&2
-                    exit 2
-                fi
+                failure_exit "2" "Sorry my dude, but your room ID doesn't match Volafile's format!\n"
             fi ; shift 2 ;;
         -c | --call) CALL="true"; shift ;;
         -n | --nick) NICK="$2" ; shift 2 ;;
@@ -50,9 +46,8 @@ while true; do
         -t | --retries) RETRIES="$2"
             re="^[0-9]$"
             if ! [[ "$RETRIES" =~ $re ]] || [[ "$RETRIES" -lt 0 ]]; then
-                echo -e "\n\033[31mYou wanted to set negative number of retries or ..." >&2
-                echo -e "... exceeded maximum retry count.\033[0m\n" >&2
-                exit 3
+                failure_exit "3" "You wanted to set negative number of retries or ..." \
+                "... exceeded maximum retry count.\n"
             fi ; shift 2 ;;
         -w | --watch) WATCHING="true" ; shift ;;
         -m | --most-new) NEWEST="true" ; shift ;;
@@ -64,13 +59,19 @@ while true; do
     esac
 done
 
-proper_exit() { rm -f "$COOKIE"; exit 0; }
+proper_exit() { rm -f "$COOKIE" ; exit 0; }
 
 failure_exit() {
+    trap - SIGHUP SIGINT SIGTERM
     local failure
-    for failure in "$@"; do
+    local exit_code="$1"
+    if [[ "$exit_code" == "" ]]; then
+        echo -e "\n\033[0mProgram interrupted by user."
+        exit_code=10
+    fi; echo >&2
+    for failure in "${@:2}"; do
         echo -e "\033[31m$failure\033[0m" >&2
-    done; rm -f "$COOKIE"; exit 4;
+    done; rm -f "$COOKIE" ;  exit "$exit_code"
 }
 
 #Return non zero value when script gets interrupted with Ctrl+C or some error occurs
@@ -83,18 +84,6 @@ skip() {
     for omit in "$@"; do
         echo -e "\033[31m$omit\033[0m" >&2
     done; rm -f "$COOKIE"
-}
-
-handleErrors() {
-    case $1 in
-        0  ) ;;
-        6  ) failure_exit "\nCheck your interwebz connection, my friendo!" \
-                "Either that, or volafile is dead.\n" ;;
-        22 ) failure_exit "\nRoom with ID you specified doesn't exist.\n" ;;
-        101) failure_exit "\nLogin Error: You used wrong login and/or password my dude." \
-                "You wanna login properly, so those sweet volastats can stack up!\n" ;;
-        *  ) failure_exit "\ncURL error of code $1 happend.\n" ;;
-    esac
 }
 
 if [[ -z "$(which curlbar)" ]]; then
@@ -140,8 +129,8 @@ print_help() {
 
 
 bad_arg() {
-    echo -e "\n\033[33;1m${1}\033[22m: This argument isn't a file or a directory. Skipping ...\033[0m\n"
-    echo -e "Use -h or --help to check program usage.\n"
+    echo -e "\n\033[33;1m${1}\033[22m: This argument isn't a file or a directory. Skipping ...\033[0m\n" >&2
+    echo -e "Use -h or --help to check program usage.\n" >&2
 }
 
 extract() {
@@ -150,7 +139,7 @@ extract() {
         b="$(echo "$line" | cut -d'=' -f1)"
         if [[ "$b" == "$_key" ]]; then
             printf "%s" "$line" | cut -d'=' -f2
-            return;
+            return
         fi
         done)
 }
@@ -160,6 +149,7 @@ makeApiCall() {
     local query="$2"
     local name="$3"
     local password="$4"
+
     if [[ -n "$name" ]] && [[ -n "$password" ]]; then
         #session "memoization"
         if [[ ! -f "$COOKIE" ]]; then
@@ -181,28 +171,45 @@ makeApiCall() {
 }
 
 doUpload() {
+
+    trap failure_exit SIGINT
+
     local file="$1"
     local room="$2"
     local name="$3"
     local pass="$4"
     local renamed="$5"
+    local response
+    local error
 
     if [[ -n "$name" ]] && [[ -n "$pass" ]]; then
-        local response; response=$(makeApiCall getUploadKey "name=$name&room=$room" "$name" "$pass")
+        response=$(makeApiCall getUploadKey "name=$name&room=$room" "$name" "$pass")
     elif [[ -n "$name" ]]; then
-        local response; response=$(makeApiCall getUploadKey "name=$name&room=$room")
+        response=$(makeApiCall getUploadKey "name=$name&room=$room")
     else
         #If user didn't specify name, default it to Volaphile.
         name="Volaphile"
-        local response; response=$(makeApiCall getUploadKey "name=$name&room=$room")
+        response=$(makeApiCall getUploadKey "name=$name&room=$room")
     fi
-    handleErrors "$?"
-
-    local error; error=$(extract "$response" "error.code")
-
-    if [[ -n "$error" ]]; then
-        local errmsg; errmsg=$(extract "$response" "error.message")
-        failure_exit "\n$error Server Error" "$errmsg\n"
+    error="$?"
+    case "$error" in
+        0  ) ;;
+        6  ) echo "106"
+             echo "Check your interwebz connection, my friendo!"
+             echo "Either that, or volafile is dead.#"; return ;;
+        101) echo "101"; echo "Login Error: You used wrong login and/or password my dude."
+             echo "You wanna login properly, so those sweet volastats can stack up!#";  return;;
+        *  ) echo "105"; echo "cURL error of code $error happend.#"; return ;;
+    esac
+    error=$(extract "$response" "error.code")
+    if [[ "$error" == "429" ]]; then
+        echo "103"
+        echo "$(extract "$response" "error.info.timeout")#"
+        return
+    elif [[ -n "$error" ]]; then
+        echo "104"
+        echo -e "Error number $error. $(extract "$response" "error.message")#"
+        return
     fi
 
     local server; server="https://$(extract "$response" server)"
@@ -211,51 +218,66 @@ doUpload() {
 
     # -f option makes curl return error 22 on server responses with code 400 and higher
     if [[ -z "$renamed" ]]; then
-        echo -e "\033[32m<^> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m"
-        printf "\033[33m" 2>&1 #curlbar prints stuff to stderr so we change color for stdout and stderr
+        echo -e "\033[32m<^> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m" >&2
+        printf "\033[33m" >&2 #curlbar prints stuff to stderr so we change color in that descriptor
         $cURL -1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
             "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
     else
-        echo -e "\033[32m<^> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m\n"
-        echo -e "-> File renamed to: \033[1m${renamed}\033[22m"
-        printf "\033[33m" 2>&1
+        echo -e "\033[32m<^> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m" >&2
+        echo -e "-> File renamed to: \033[1m${renamed}\033[22m" >&2
+        printf "\033[33m" >&2
         $cURL -1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
             "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
         file="$renamed"
     fi
-    printf "\033[0m"
+    printf "\033[0m" >&2
     case $error in
         0 | 102) #Replace spaces with %20 so my terminal url finder can see links properly.
             if [[ $error -eq 102 ]]; then
-                printf "\033[33mFile was too small to make me bothered with printing the progress bar.\033[0m\n"
+                printf "\033[33mFile was too small to make me bothered with printing the progress bar.\033[0m\n" >&2
             fi
             file=$(basename "$file" | sed -r "s/ /%20/g" )
-            printf "\n\033[35mVola direct link:\033[0m\n"
-            printf "\033[1m%s/get/%s/%s\033[0m\n\n" "$SERVER" "$file_id" "$file" ;;
-        1 ) skip "Some strange TLS error, continuing." ;;
-        6 ) failure_exit "\nRoom with ID of \033[1m$ROOM\033[22m doesn't exist! Closing script.\n" ;;
+            printf "\n\n\033[35mVola direct link:\033[0m\n" >&2
+            printf "\033[1m%s/get/%s/%s\033[0m\n\n" "$SERVER" "$file_id" "$file" >&2 ;;
         22) skip "\nServer error. Usually caused by gateway timeout.\n" ;;
         * ) skip "\nError nr \033[1m${error}\033[22m: Upload failed!\n" ;;
     esac
-    return $error
+    echo "${error}#"
 }
 
 tryUpload() {
-    local i=0
+    local -i i=0
     while ((i<RETRIES)); do
-        doUpload "$1" "$2" "$3" "$4" "$5"
-        local code="$?"
-        if [[ $code -eq 0 ]] || [[ $code -eq 1 ]] || [[ $code -eq 102 ]] ; then
+        # first argument of 'handle' is error code
+        # second and later arguments are whatever
+        { local IFS=$'\n'; read -r -d'#' -a handle
+        if [[ ${handle[0]} == "0" ]] || [[ ${handle[0]} == "102" ]] ; then
             return
+        elif [[ ${handle[0]} == "101" ]] || [[ ${handle[0]} == "104" ]] \
+            || [[ ${handle[0]} == "105" ]]|| [[ ${handle[0]} == "106" ]]; then
+            failure_exit "${handle[@]}"
+        elif [[ ${handle[0]} == "103" ]]; then
+            local penalty
+            penalty="$(bc <<< "(${handle[1]}/1000)+1")"
+            printf "\033[33m"
+            while [[ $penalty -gt 0 ]]; do
+                printf "\033[0GToo many key requests, hotshot. Gotta wait %s seconds now...\033[0K" \
+                    "$((penalty - 1))" >&2
+                sleep 1
+                ((penalty--))
+            done
+            printf "\033[0m"
+        else
+            echo -e "\033[33mcURL error nr ${handle[0]} happend.\033[0m\n" >&2
+            echo -e "\033[33mRetrying upload after 5 seconds ...\033[0m\n" >&2
+            sleep 5
         fi
+        } < <(doUpload "$1" "$2" "$3" "$4" "$5")
         ((++i))
-        echo "Retrying upload after 5 seconds..."
-        sleep 5
-        wait
     done
-    failure_exit "\nExceeded number of retries... Closing script."
+    failure_exit "8" "Exceeded maximum number of retries... Closing script."
 }
 
 getExtension() {
@@ -273,34 +295,37 @@ argc=$(howmany "$TARGETS")
 if [[ -n "$HELP" ]]; then
     print_help
 elif [[ $argc -eq 0 ]]; then
-    failure_exit "\nYou didn't specify any files that can be uploaded!\n"
+    failure_exit "4" "You didn't specify any files that can be uploaded!\n"
 elif [[ $argc == 2 ]] && [[ -n "$CALL" ]]; then
     set -f ; set -- $TARGETS
-    makeApiCall "$1" "$2"
-    handleErrors "$?"
+    declare -i error
+    makeApiCall "$1" "$2"; error="$?"
+    if [[ "$error" -ne 0 ]]; then
+        failure_exit "$?" "cURL error of code $error happend."
+    fi
     proper_exit
 fi
 if [[ -n "$ROOM" ]] ; then
     ROOM=$(curl -fsLH "Referer: $SERVER" -H "Accept: text/values" \
         "https://volafile.org/r/$ROOM" | grep -oP "\"room_id\s*\"\s*:\s*\"\K[a-zA-Z0-9-_]+(?=\",)")
     if [[ "$?" -ne 0 ]]; then
-        failure_exit "\nRoom you specified doesn't exist, or Vola is busted for good this time!\n"
+        failure_exit "5" "Room you specified doesn't exist, or Vola is busted for good this time!\n"
     fi
 fi
 if [[ -z "$NICK" ]] && [[ -n "$PASSWORD" ]]; then
-    failure_exit "\nSpecifying password, but not a username? What are you? A silly-willy?\n"
+    failure_exit "4" "Specifying password, but not a username? What are you? A silly-willy?\n"
 elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
     if [[ -z "$(which inotifywait)" ]]; then
-        failure_exit "\nPlease install inotify-tools package in order to use this feature.\n"
+        failure_exit "6" "Please install inotify-tools package in order to use this feature.\n"
     fi
     TARGET=$(echo "$TARGETS" | tr -d "\r")
     if [[ -d "$TARGET" ]]; then
-        inotifywait -m -e close_write -e moved_to --format '%w%f' "$TARGET" | \
+        inotifywait -m -e moved_to --format '%w%f' "$TARGET" | \
             while read -r dir file; do
                 tryUpload "${dir}${file}" "$ROOM" "$NICK" "$PASSWORD"
             done
-        else
-        failure_exit "\nYou have to specify the directory that can be watched.\n"
+    else
+        failure_exit "7" "You have to specify the directory that can be watched.\n"
     fi
 elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
     set -- $RENAMES
@@ -308,7 +333,11 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
         if [[ -d "$t" ]] && [[ -n "$NEWEST" ]]; then
             file=$(find "$t" -maxdepth 1 -type f -printf '%T@ %p\n' \
                 | sort -n | tail -n1 | cut -d' ' -f2-)
-            tryUpload "$file" "$ROOM" "$NICK" "$PASSWORD"
+            if [[ -n "$1" ]]; then
+                tryUpload "$file" "$ROOM" "$NICK" "$PASSWORD" "$(getExtension "$1" "$file")"
+            else
+                tryUpload "$file" "$ROOM" "$NICK" "$PASSWORD"
+            fi
         elif [[ -d "$t" ]]; then
             shopt -s globstar
             GLOBIGNORE=".:.."
