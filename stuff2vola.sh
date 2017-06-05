@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155,SC2162
+# shellcheck disable=SC2155,SC2162,SC2164,SC2103
 
-#shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=1.0
+# shellcheck disable=SC2034
+__STUFF2VOLASH_VERSION__=1.1
 
 if ! OPTS=$(getopt --options hl:r:n:p:a:d:og \
     --longoptions help,link:,room:,nick:,password:,upload-as:,dir:,audio-only,purge \
@@ -17,8 +17,30 @@ fi
 
 
 IFS=$'\r'
+if [ -z "$TMPDIR" ]; then
+    TMP="/tmp"
+else
+    TMP="${TMPDIR%/}"
+fi
 
 eval set -- "$OPTS"
+
+cleanup() {
+    cd "$TMP"
+    for d in $DIR_LIST ; do
+        rm -rf "$d"
+    done
+    trap - SIGHUP SIGTERM SIGINT
+    local failure
+    local exit_code="$1"
+    if [[ "$exit_code" == "" ]]; then
+        echo -e "\n\033[0mProgram interrupted by user."
+        exit_code=10
+    fi
+    for failure in "${@:2}"; do
+        echo -e "\033[31m$failure\033[0m" >&2
+    done;  exit "$exit_code"
+}
 
 while true; do
     case "$1" in
@@ -28,7 +50,10 @@ while true; do
         -n | --nick) NICK="$2" ; shift 2 ;;
         -p | --password) PASSWORD="$2" ; shift 2 ;;
         -a | --upload-as) ASS="${ASS}${2}$IFS"; shift 2;;
-        -d | --dir) VID_DIR="$2"; shift 2;;
+        -d | --dir) VID_DIR="$2"
+                if [[ ! -d "$VID_DIR" ]]; then
+                    cleanup "4" "You specified invalid directory.\n"
+                fi; shift 2;;
         -o | --audio-only) A_ONLY="true"; shift ;;
         -g | --purge) PURGE="true"; shift ;;
         --) shift;
@@ -39,7 +64,6 @@ while true; do
     esac
 done
 
-TMP="/tmp"
 
 print_help() {
     echo -e "\nstuff2vola.sh help page\n"
@@ -60,13 +84,12 @@ print_help() {
     echo -e "-a, --upload-as <renamed_file>"
     echo -e "   Upload file with custom name.\n"
     echo -e "-d, --dir <destination_directory>"
-    echo -e "   If you will specify this option, you will be prompted for each file you downloaded"
-    echo -e "   to store it in given directory. Otherwise all your downloaded files will be"
-    echo -e "   discarded after uploading them to Volafile.\n"
+    echo -e "   If you will specify this option, all of your downloaded files will be saved"
+    echo -e "   into the given directory.\n"
     echo -e "-o, --audio-only"
     echo -e "   If file you want forward to Volafile is a video, this option will strip video"
     echo -e "   stream from it and upload only audio stream.\n"
-    echo -e "-g, --pruge"
+    echo -e "-g, --purge"
     echo -e "   Set this if you don't want to keep any downloaded files.\n"
     exit 0
 }
@@ -98,29 +121,12 @@ ask_keep() {
     done
 }
 
-cleanup() {
-    cd "$TMP" || exit
-    for d in $DIR_LIST ; do
-        rm -rf "$d"
-    done
-    trap - SIGHUP SIGTERM EXIT
-    true # return prompt to default state if we interrupt our script
-    exit
-}
-
-failure_exit() {
-    local failure
-    for failure in "$@"; do
-        echo -e "\033[31m$failure\033[0m" >&2
-    done; cleanup;
-}
-
 skip() {
     printf "\033[31m" >&2
     case $1 in
         0 ) printf "\033[0m" >&2; return 0 ;;
-        6 ) echo -e "\n$2: This link is busted. Try with a valid one.\033[0m\n" >&2; return 1;;
-        * ) echo -e "\ncURL error of code $1 happend.\033[0m\n" >&2; return 1 ;;
+        6 ) echo -e "\n$2: This link is busted. Try with a valid one.\033[0m" >&2; return 1;;
+        * ) echo -e "\ncURL error of code $1 happend.\033[0m" >&2; return 1 ;;
     esac
 }
 
@@ -148,7 +154,7 @@ getContentType(){
         -e "/^content-type:/p" \
         "$FIFO" | \
     {
-    trap cleanup ERR SIGINT
+    trap cleanup SIGINT
     local lastredirect=1
     local filetype
     while local IFS=' '; read -r -a line; do
@@ -156,13 +162,13 @@ getContentType(){
             lastredirect=0
         fi
         if [[ $lastredirect -eq 0 ]] && [[ "${line[0]}" == "content-type:" ]]; then
-            filetype=$(echo "${line[1]}" | tr -d ';')
+            filetype=$(echo "${line[1]}" | tr -d ';[:space:]')
         fi
     done
     sync
     rm -f "$FIFO"
     kill -9 "$curl_pid" 2>/dev/null || true
-    echo "$filetype"
+    echo -n "$filetype"
     }
     return "$(cat $status)"
 }
@@ -198,13 +204,13 @@ while  read -r -a line; do
             sleep 1 &
             SLEEP_PID="$!"
             printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G" \
-            "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "$speed" "$eta"
+            "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "$speed" "$eta" >&2
         fi
     elif [[ ${line[1]} == "Requested" ]]; then
-        echo -e "Video and audio streams will be downloaded separately and merged together."
+        echo -e "Video and audio streams will be downloaded separately and merged together." >&2
     elif [[ ${line[0]} == "ERROR:" ]]; then
         # shellcheck disable=SC2145
-        echo -e "\n\033[31m${line[@]:1}. Closing script.\033[0m\n"; return 1
+        echo -e "\n\033[31m${line[@]:1}. Closing script.\033[0m\n" >&2; return 1
     else
         echo -e "${line[@]:1}"
     fi
@@ -217,23 +223,28 @@ postStuff() {
     if [[ $A_ONLY == "true" ]]; then
         local arg="wav/mp3/m4a/ogg"
     else
-        local arg="bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/mp4/webm"
+        local arg="bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/mp4/webm/wav/mp3/m4a/ogg"
     fi
-    cd "$TMP" || cleanup
+    local dir
+    local ftype
+    local error
+    local file
+
+    cd "$TMP"
     for l in $LINKS ; do
-        local dir="tmp_${RANDOM}${RANDOM}"
+        dir="tmp_$(head -c10 < <(tr -dc '[:alnum:]' < /dev/urandom))"
         DIR_LIST="${DIR_LIST}${dir}$IFS"
         mkdir -p "$dir"
-        cd "$dir" || cleanup
+        cd "$dir"
         ftype="$(getContentType "$l")"
-        local error="$?"
+        error="$?"
         skip "$error" "$l" || continue
         echo -e "\033[32m<v> Downloading to \033[1m$TMP/$dir\033[22m"
         printf "\033[33m"
         if [[ "$ftype" == "text/html" ]]; then
             youtube-dlBar "$arg" "$l"
         else
-            $cURL -L "$l" > "$(basename "$l")"
+            $cURL -L "$l" > "$(basename "$l")" ; echo >&2
         fi
         error="$?"
         printf "\033[0\n"
@@ -245,7 +256,7 @@ postStuff() {
         cd ..
     done
     if [[ ${#FILE_LIST} -eq 0 ]]; then
-        failure_exit "Any of your links weren't valid. Closing the party.\n"
+        cleanup "2" "Any of your links weren't valid. Closing the party.\n"
     fi
     #shellcheck disable=SC2086
     set -- $ASS
@@ -258,9 +269,9 @@ postStuff() {
 
     done
     printf "%s" "$ARG_PREP" | xargs -d "$IFS" volaupload.sh \
-        -r "$ROOM" -n "$NICK" -p "$PASSWORD"  || cleanup
+        -r "$ROOM" -n "$NICK" -p "$PASSWORD"  || cleanup "3" "Error on the volaupload.sh side.\n"
     if [[ -n "$PURGE" ]]; then
-        cleanup
+        cleanup "0"
     else
         if [[ -d "$VID_DIR" ]] ; then
             for f in $FILE_LIST ; do
@@ -271,15 +282,16 @@ postStuff() {
                 ask_keep "$f"
             done
         fi
+        cleanup "0"
     fi
 }
 
-trap cleanup SIGHUP SIGTERM SIGINT EXIT
+trap cleanup SIGHUP SIGTERM SIGINT
 
 if [[ -n $HELP ]]; then
     print_help
 elif [[ -z "$LINKS" ]]; then
-    echo -e "\nMy dude, comon. You tried to download nothing.\n" ; exit 1
+    cleanup "1" "My dude, comon. You tried to download nothing.\n"
 else
     postStuff
 fi

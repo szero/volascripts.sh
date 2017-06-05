@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-#shellcheck disable=SC2086
+# shellcheck disable=SC2086
 
-#shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=1.0
+# shellcheck disable=SC2034
+__VOLAUPLOADSH_VERSION__=1.1
 
 if ! OPTS=$(getopt --options hu:r:cn:p:a:t:wm \
     --longoptions help,upload:,room:,call,nick:,password:,upload-as:,retries:,watch,most-new \
@@ -29,39 +29,9 @@ SERVER="https://volafile.org"
 COOKIE="/tmp/cuckie"
 RETRIES="3"
 
-while true; do
-    case "$1" in
-        -h | --help) HELP="true" ; shift ;;
-        -u | --upload) TARGETS="${TARGETS}${2}$IFS" ; shift 2 ;;
-        -r | --room)
-            if [[ "$2" =~ [a-zA-Z0-9_-]{3,20}$ ]]; then
-                ROOM="${BASH_REMATCH[0]}"
-            else
-                failure_exit "2" "Sorry my dude, but your room ID doesn't match Volafile's format!\n"
-            fi ; shift 2 ;;
-        -c | --call) CALL="true"; shift ;;
-        -n | --nick) NICK="$2" ; shift 2 ;;
-        -p | --password) PASSWORD="$2" ; shift 2 ;;
-        -a | --upload-as) RENAMES="${RENAMES}${2}$IFS" ; shift 2 ;;
-        -t | --retries) RETRIES="$2"
-            re="^[0-9]$"
-            if ! [[ "$RETRIES" =~ $re ]] || [[ "$RETRIES" -lt 0 ]]; then
-                failure_exit "3" "You wanted to set negative number of retries or ..." \
-                "... exceeded maximum retry count.\n"
-            fi ; shift 2 ;;
-        -w | --watch) WATCHING="true" ; shift ;;
-        -m | --most-new) NEWEST="true" ; shift ;;
-        --) shift;
-            until [[ -z "$1" ]]; do
-                TARGETS="${TARGETS}${1}$IFS" ; shift
-            done ; break ;;
-        * ) shift ;;
-    esac
-done
-
-proper_exit() { rm -f "$COOKIE" ; exit 0; }
-
-failure_exit() {
+#Return non zero value when script gets interrupted with Ctrl+C or some error occurs
+# and remove the cookie
+handle_exit() {
     trap - SIGHUP SIGINT SIGTERM
     local failure
     local exit_code="$1"
@@ -74,9 +44,37 @@ failure_exit() {
     done; rm -f "$COOKIE" ;  exit "$exit_code"
 }
 
-#Return non zero value when script gets interrupted with Ctrl+C or some error occurs
-# and remove the cookie
-trap failure_exit SIGHUP SIGINT SIGTERM
+while true; do
+    case "$1" in
+        -h | --help) HELP="true" ; shift ;;
+        -u | --upload) TARGETS="${TARGETS}${2}$IFS" ; shift 2 ;;
+        -r | --room)
+            if [[ "$2" =~ [a-zA-Z0-9_-]{3,20}$ ]]; then
+                ROOM="${BASH_REMATCH[0]}"
+            else
+                handle_exit "2" "Sorry my dude, but your room ID doesn't match Volafile's format!\n"
+            fi ; shift 2 ;;
+        -c | --call) CALL="true"; shift ;;
+        -n | --nick) NICK="$2" ; shift 2 ;;
+        -p | --password) PASSWORD="$2" ; shift 2 ;;
+        -a | --upload-as) RENAMES="${RENAMES}${2}$IFS" ; shift 2 ;;
+        -t | --retries) RETRIES="$2"
+            re="^[0-9]$"
+            if ! [[ "$RETRIES" =~ $re ]] || [[ "$RETRIES" -lt 0 ]]; then
+                handle_exit "3" "You wanted to set negative number of retries or ..." \
+                "... exceeded maximum retry count.\n"
+            fi ; shift 2 ;;
+        -w | --watch) WATCHING="true" ; shift ;;
+        -m | --most-new) NEWEST="true" ; shift ;;
+        --) shift;
+            until [[ -z "$1" ]]; do
+                TARGETS="${TARGETS}${1}$IFS" ; shift
+            done ; break ;;
+        * ) shift ;;
+    esac
+done
+
+trap handle_exit SIGHUP SIGINT SIGTERM
 
 #remove cookie on server error to get fresh session for next upload
 skip() {
@@ -172,7 +170,7 @@ makeApiCall() {
 
 doUpload() {
 
-    trap failure_exit SIGINT
+    trap handle_exit SIGINT
 
     local file="$1"
     local room="$2"
@@ -240,7 +238,7 @@ doUpload() {
             fi
             file=$(basename "$file" | sed -r "s/ /%20/g" )
             printf "\n\n\033[35mVola direct link:\033[0m\n" >&2
-            printf "\033[1m%s/get/%s/%s\033[0m\n\n" "$SERVER" "$file_id" "$file" >&2 ;;
+            printf "\033[1m%s/get/%s/%s\033[0m\n" "$SERVER" "$file_id" "$file" >&2 ;;
         22) skip "\nServer error. Usually caused by gateway timeout.\n" ;;
         * ) skip "\nError nr \033[1m${error}\033[22m: Upload failed!\n" ;;
     esac
@@ -257,7 +255,7 @@ tryUpload() {
             return
         elif [[ ${handle[0]} == "101" ]] || [[ ${handle[0]} == "104" ]] \
             || [[ ${handle[0]} == "105" ]]|| [[ ${handle[0]} == "106" ]]; then
-            failure_exit "${handle[@]}"
+            handle_exit "${handle[@]}"
         elif [[ ${handle[0]} == "103" ]]; then
             local penalty
             penalty="$(bc <<< "(${handle[1]}/1000)+1")"
@@ -277,7 +275,7 @@ tryUpload() {
         } < <(doUpload "$1" "$2" "$3" "$4" "$5")
         ((++i))
     done
-    failure_exit "8" "Exceeded maximum number of retries... Closing script."
+    handle_exit "8" "Exceeded maximum number of retries... Closing script."
 }
 
 getExtension() {
@@ -295,28 +293,28 @@ argc=$(howmany "$TARGETS")
 if [[ -n "$HELP" ]]; then
     print_help
 elif [[ $argc -eq 0 ]]; then
-    failure_exit "4" "You didn't specify any files that can be uploaded!\n"
+    handle_exit "4" "You didn't specify any files that can be uploaded!\n"
 elif [[ $argc == 2 ]] && [[ -n "$CALL" ]]; then
     set -f ; set -- $TARGETS
     declare -i error
     makeApiCall "$1" "$2"; error="$?"
     if [[ "$error" -ne 0 ]]; then
-        failure_exit "$?" "cURL error of code $error happend."
+        handle_exit "$?" "cURL error of code $error happend."
     fi
-    proper_exit
+    handle_exit "0"
 fi
 if [[ -n "$ROOM" ]] ; then
     ROOM=$(curl -fsLH "Referer: $SERVER" -H "Accept: text/values" \
         "https://volafile.org/r/$ROOM" | grep -oP "\"room_id\s*\"\s*:\s*\"\K[a-zA-Z0-9-_]+(?=\",)")
     if [[ "$?" -ne 0 ]]; then
-        failure_exit "5" "Room you specified doesn't exist, or Vola is busted for good this time!\n"
+        handle_exit "5" "Room you specified doesn't exist, or Vola is busted for good this time!\n"
     fi
 fi
 if [[ -z "$NICK" ]] && [[ -n "$PASSWORD" ]]; then
-    failure_exit "4" "Specifying password, but not a username? What are you? A silly-willy?\n"
+    handle_exit "4" "Specifying password, but not a username? What are you? A silly-willy?\n"
 elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
     if [[ -z "$(which inotifywait)" ]]; then
-        failure_exit "6" "Please install inotify-tools package in order to use this feature.\n"
+        handle_exit "6" "Please install inotify-tools package in order to use this feature.\n"
     fi
     TARGET=$(echo "$TARGETS" | tr -d "\r")
     if [[ -d "$TARGET" ]]; then
@@ -325,7 +323,7 @@ elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
                 tryUpload "${dir}${file}" "$ROOM" "$NICK" "$PASSWORD"
             done
     else
-        failure_exit "7" "You have to specify the directory that can be watched.\n"
+        handle_exit "7" "You have to specify the directory that can be watched.\n"
     fi
 elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
     set -- $RENAMES
@@ -356,7 +354,7 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
             bad_arg "$t" ; shift
         fi
     done
-    proper_exit
+    handle_exit "0"
 else
     print_help
 fi

@@ -3,8 +3,8 @@
 set -uo pipefail
 IFS=$'\n\t'
 
-VOLAUPLOAD_SH_VER=(1 0)
-STUFF2VOLA_SH_VER=(1 0)
+VOLAUPLOAD_SH_VER=(1 1)
+STUFF2VOLA_SH_VER=(1 1)
 
 
 check_version() {
@@ -51,6 +51,7 @@ installing() {
         chmod a+rx "$1/youtube-dl"
     fi
     if [[ "${BASH_VERSINFO[0]}" -ge 4 ]] && [[ "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+        echo -e "\nInstalling curlbar ...\n"
         curl --progress-bar -L "https://gist.githubusercontent.com/Szero/cd496ca43df4b871df75818ebcc40233/raw/7d27a17fe36f852ca84f64f066b3805ff6d4e826/curlbar" -o "$1/curlbar"
         chmod a+rx "$1/curlbar"
     else

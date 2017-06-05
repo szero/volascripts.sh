@@ -19,8 +19,8 @@ stuff2vola.sh (vid2vola.sh before)
 Are you a fan of redundancy and don't want to post links to stuff in a chat like a pleb?
 Than this is a script for you. It will download most content from the web and upload it to
 designeted Volafile room. Script can take multiple arguments just like volaupload.sh.
-Script will ask you if you want to keep each of downloaded files if you specify -d option.
-To not preserve any of the downloaded files just dont set the -d option.
+Script will ask you if you want to keep each of downloaded files by default.
+To not preserve any of the downloaded files, set the -g option.
 Invoke script with -h or --help command to list other options. 
 
 Disclaimer
