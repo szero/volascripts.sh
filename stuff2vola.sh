@@ -2,7 +2,7 @@
 # shellcheck disable=SC2155,SC2162,SC2164,SC2103
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=1.1
+__STUFF2VOLASH_VERSION__=1.2
 
 if ! OPTS=$(getopt --options hl:r:n:p:a:d:og \
     --longoptions help,link:,room:,nick:,password:,upload-as:,dir:,audio-only,purge \
@@ -53,7 +53,10 @@ while true; do
         -d | --dir) VID_DIR="$2"
                 if [[ ! -d "$VID_DIR" ]]; then
                     cleanup "4" "You specified invalid directory.\n"
-                fi; shift 2;;
+                fi
+                if [[ "$VID_DIR" == "." ]]; then
+                   VID_DIR="$PWD"
+                fi; shift 2 ;;
         -o | --audio-only) A_ONLY="true"; shift ;;
         -g | --purge) PURGE="true"; shift ;;
         --) shift;
@@ -174,7 +177,8 @@ getContentType(){
 }
 
 youtube-dlBar() {
-youtube-dl --newline -o "%(title)s.%(ext)s" -f "$1" "$2" 2>&1 | \
+# shellcheck disable=SC2068
+youtube-dl --newline -o "%(title)s.%(ext)s" $@ 2>&1 | \
     sed -nu \
     -e '/^\[download\]/p' \
     -e '/^WARNING:/p' \
@@ -190,7 +194,7 @@ while  read -r -a line; do
     if [[ "${line[1]}" == "100%" ]]; then
         printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G\n\n" \
         "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "$speed" "$eta"
-    elif [[ "${line[1]}" =~ $re ]]; then
+    elif [[ ${line[0]} == "[download]" ]] && [[ "${line[1]}" =~ $re ]]; then
         speed="${line[5]}"
         eta="${line[7]}"
         local percent="${line[1]//%}"
@@ -208,11 +212,12 @@ while  read -r -a line; do
         fi
     elif [[ ${line[1]} == "Requested" ]]; then
         echo -e "Video and audio streams will be downloaded separately and merged together." >&2
+    elif  [[ ${line[1]} == "Downloading" ]]; then
+        echo -e "\n${line[*]:1}\n" >&2
     elif [[ ${line[0]} == "ERROR:" ]]; then
-        # shellcheck disable=SC2145
-        echo -e "\n\033[31m${line[@]:1}. Closing script.\033[0m\n" >&2; return 1
+        echo -e "\033[31m${line[*]:1}. Skipping.\033[33m\n" >&2
     else
-        echo -e "${line[@]:1}"
+        echo -e "${line[*]:1}" >&2
     fi
 done
 return 0
@@ -221,18 +226,19 @@ return 0
 
 postStuff() {
     if [[ $A_ONLY == "true" ]]; then
-        local arg="wav/mp3/m4a/ogg"
+        local args=$'-ixf\rbestaudio/wav/opus/mp3/m4a/ogg'
     else
-        local arg="bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/mp4/webm/wav/mp3/m4a/ogg"
+        local args=$'-if\rbestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/mp4/webm/wav/mp3/m4a/ogg'
     fi
     local dir
     local ftype
     local error
     local file
+    local f
 
     cd "$TMP"
     for l in $LINKS ; do
-        dir="tmp_$(head -c10 < <(tr -dc '[:alnum:]' < /dev/urandom))"
+        dir="volastuff_$(head -c4 <(tr -dc '[:alnum:]' < /dev/urandom))"
         DIR_LIST="${DIR_LIST}${dir}$IFS"
         mkdir -p "$dir"
         cd "$dir"
@@ -242,16 +248,19 @@ postStuff() {
         echo -e "\033[32m<v> Downloading to \033[1m$TMP/$dir\033[22m"
         printf "\033[33m"
         if [[ "$ftype" == "text/html" ]]; then
-            youtube-dlBar "$arg" "$l"
+            youtube-dlBar "$args" "$l"
         else
-            $cURL -L "$l" > "$(basename "$l")" ; echo >&2
+            $cURL -L "$l" > "$(basename "$l")"
         fi
         error="$?"
-        printf "\033[0\n"
+        printf "\033[0m\n"
         skip "$error" "$l" || continue
-        file=$(find -maxdepth 1 -regextype posix-egrep -regex ".+\.[a-zA-Z0-9?]{2,20}" -printf "%f")
+        file=$(find -maxdepth 1 -regextype posix-egrep -regex ".+\.[a-zA-Z0-9?=&_]{2,70}$" -printf "%f$IFS")
+        mv -f "$file" "$(echo "$file" | sed -r "s/^(.*\.[0-9a-zA-Z]{1,4}).*/\1/")" 2>/dev/null
         if [[ -n "$file" ]]; then
-            FILE_LIST="${FILE_LIST}${dir}/${file}$IFS"
+            for f in $file ; do
+                FILE_LIST="${FILE_LIST}${dir}/${f}$IFS"
+            done
         fi
         cd ..
     done

@@ -2,7 +2,7 @@
 # shellcheck disable=SC2086
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=1.1
+__VOLAUPLOADSH_VERSION__=1.2
 
 if ! OPTS=$(getopt --options hu:r:cn:p:a:t:wm \
     --longoptions help,upload:,room:,call,nick:,password:,upload-as:,retries:,watch,most-new \
@@ -38,7 +38,7 @@ handle_exit() {
     if [[ "$exit_code" == "" ]]; then
         echo -e "\n\033[0mProgram interrupted by user."
         exit_code=10
-    fi; echo >&2
+    fi
     for failure in "${@:2}"; do
         echo -e "\033[31m$failure\033[0m" >&2
     done; rm -f "$COOKIE" ;  exit "$exit_code"
@@ -237,8 +237,8 @@ doUpload() {
                 printf "\033[33mFile was too small to make me bothered with printing the progress bar.\033[0m\n" >&2
             fi
             file=$(basename "$file" | sed -r "s/ /%20/g" )
-            printf "\n\n\033[35mVola direct link:\033[0m\n" >&2
-            printf "\033[1m%s/get/%s/%s\033[0m\n" "$SERVER" "$file_id" "$file" >&2 ;;
+            printf "\n\033[35mVola direct link:\033[0m\n" >&2
+            printf "\033[1m%s/get/%s/%s\033[0m\n\n" "$SERVER" "$file_id" "$file" >&2 ;;
         22) skip "\nServer error. Usually caused by gateway timeout.\n" ;;
         * ) skip "\nError nr \033[1m${error}\033[22m: Upload failed!\n" ;;
     esac
@@ -318,7 +318,7 @@ elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
     fi
     TARGET=$(echo "$TARGETS" | tr -d "\r")
     if [[ -d "$TARGET" ]]; then
-        inotifywait -m -e moved_to --format '%w%f' "$TARGET" | \
+        inotifywait -m -e moved_to -e create --format '%w%f' "$TARGET" | \
             while read -r dir file; do
                 tryUpload "${dir}${file}" "$ROOM" "$NICK" "$PASSWORD"
             done
