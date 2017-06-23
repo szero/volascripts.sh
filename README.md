@@ -4,6 +4,12 @@ volascripts.sh
 Those are bash scripts which are meant to interact with [Volafile](https://volafile.org) without
 a need of using the browser. I have only two right now but I'm open for suggestions.
 
+Disclaimer
+----------
+
+`volaupload.sh` was originally made by [lain](https://github.com/laino) and Xiao. It seemed
+to be abandoned so I enhanced it with agrument parsing and some other features.
+
 volaupload.sh
 -------------
 
@@ -19,15 +25,9 @@ stuff2vola.sh (vid2vola.sh before)
 Are you a fan of redundancy and don't want to post links to stuff in a chat like a pleb?
 Than this is a script for you. It will download most content from the web and upload it to
 designeted Volafile room. Script can take multiple arguments just like volaupload.sh.
-Script will ask you if you want to keep each of downloaded files by default.
-To not preserve any of the downloaded files, set the -g option.
-Invoke script with -h or --help command to list other options. 
-
-Disclaimer
-----------
-
-`volaupload.sh` was originally made by [lain](https://github.com/laino) and Xiao. It seemed
-to be abandoned so I enhanced it with agrument parsing and some other features.
+Script doesn't save downloaded files by default. If you want to keep downloaded files, please
+specify download directory with the -d option.
+Invoke script with -h or --help command to list other options.
 
 Prerequsites
 ------------
@@ -37,7 +37,7 @@ Prerequsites
 - [curl](https://curl.haxx.se/download.html) >= 7.33.0
 - [youtube-dl](https://github.com/rg3/youtube-dl)
 - [ffmpeg](http://ffmpeg.org/download.html)
-- [curlbar](https://gist.github.com/Szero/cd496ca43df4b871df75818ebcc40233) 
+- [curlbar](https://gist.github.com/Szero/cd496ca43df4b871df75818ebcc40233)
     * (required for riced upload bar)
 
 ### Optional:
@@ -45,16 +45,16 @@ Prerequsites
 - [inotify-tools](https://github.com/rvoicilas/inotify-tools/wiki)
     * This one is needed just for --watch command in volaupload.sh script.
       Check the script source and decide if you find this usefull.
-        
+
 Installation & Updating
 -----------------------
 
 bash and coreutils packages are essential on most Linux distributions, so you should already have
 them. All you need to do is to get `curl` and `ffmpeg` with your distribution's package manager.
-(`ffmpeg` is needed because sometimes to get best audio and video, `youtube-dl` will download 
+(`ffmpeg` is needed because sometimes to get best audio and video, `youtube-dl` will download
 separate streams and mux them together with `ffmpeg`)
 [youtube-dl](https://github.com/rg3/youtube-dl) and
-[curlbar](https://gist.github.com/Szero/cd496ca43df4b871df75818ebcc40233) will be 
+[curlbar](https://gist.github.com/Szero/cd496ca43df4b871df75818ebcc40233) will be
 installed with install script if you don't have them already.
 
 To install on all UNIX-like systems for current user (into `~/.local/bin` directory) type:
@@ -68,6 +68,29 @@ To install on all UNIX-like systems for all users (into `/usr/local/bin` directo
 Restart your terminal to finalize installation process.
 Install script is responsible both for updating and installing so you are good with running it
 whenever I release new updates.
+
+Configuration
+-------------
+
+You can create `.volascriptsrc` file in your `$HOME` directory to preset some options you may not
+want to specify every time you upload something. Possible values to set:
+
+```bash
+# Room you want to upload by default.
+ROOM="HF33Go"
+# Your nick and password if you wan't to upload as logged user so
+# uploads counts toward your profile statistics.
+NICK="somedude"
+PASSWORD="somepass"
+# Room aliases in a form of bash array for setting memorable names for chosen rooms
+ROOM_ALIASES=(
+"plebeians=HF33Go"
+"patricians=BEEPi"
+)
+# If you will set this options, all the files downloaded by stuff2vola.sh script will be saved
+# in the specified directory.
+VID_DIR="/home/dude/weed"
+```
 
 Example usage
 -------------

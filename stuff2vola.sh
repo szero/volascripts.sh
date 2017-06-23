@@ -2,19 +2,18 @@
 # shellcheck disable=SC2155,SC2162,SC2164,SC2103
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=1.2
+__STUFF2VOLASH_VERSION__=1.3
 
-if ! OPTS=$(getopt --options hl:r:n:p:a:d:og \
-    --longoptions help,link:,room:,nick:,password:,upload-as:,dir:,audio-only,purge \
+if ! OPTS=$(getopt --options hl:r:n:p:a:d:ob \
+    --longoptions help,link:,room:,nick:,password:,upload-as:,dir:,audio-only,best-quality \
     -n 'vid2vola.sh' -- "$@"); then
     echo -e "\nFiled parsing options.\n" ; exit 1
 fi
 
-############################################################################################
-# If you wish to preserve downloaded files, you can add `export VID_DIR="/path/to/dir"`    #
-# line to your shell config (usually located in ~/.bashrc)                                 #
-############################################################################################
-
+if [[ -f "$HOME/.volascriptsrc" ]]; then
+    #shellcheck disable=SC1090
+    source "$HOME/.volascriptsrc"
+fi
 
 IFS=$'\r'
 if [ -z "$TMPDIR" ]; then
@@ -58,7 +57,7 @@ while true; do
                    VID_DIR="$PWD"
                 fi; shift 2 ;;
         -o | --audio-only) A_ONLY="true"; shift ;;
-        -g | --purge) PURGE="true"; shift ;;
+        -b | --best-quality) BEST_Q="true"; shift ;;
         --) shift;
             until [[ -z "$1" ]]; do
                 LINKS="${LINKS}${1}$IFS" ; shift
@@ -69,32 +68,47 @@ done
 
 
 print_help() {
-    echo -e "\nstuff2vola.sh help page\n"
-    echo -e "-h, --help"
-    echo -e "   Show this help message.\n"
-    echo -e "-l, --link <upload_target>"
-    echo -e "   Download and the upload stuff from the web. Every argument that is not prepended"
-    echo -e "   with suitable option will be treated as upload target.\n"
-    echo -e "-r, --room <room_name>"
-    echo -e "   Specifiy upload room. (This plus at least one upload target is the only"
-    echo -e "   required option to upload something).\n"
-    echo -e "-n, --nick <name>"
-    echo -e "   Specify name, under which your file(s) will be uploaded.\n"
-    echo -e "-p, -pass <password>"
-    echo -e "   Set your account password. If you upload as logged user, file"
-    echo -e "   uploads will count towards your file stats on Volafile."
-    echo -e "   See https://volafile.org/user/<your_username>\n"
-    echo -e "-a, --upload-as <renamed_file>"
-    echo -e "   Upload file with custom name.\n"
-    echo -e "-d, --dir <destination_directory>"
-    echo -e "   If you will specify this option, all of your downloaded files will be saved"
-    echo -e "   into the given directory.\n"
-    echo -e "-o, --audio-only"
-    echo -e "   If file you want forward to Volafile is a video, this option will strip video"
-    echo -e "   stream from it and upload only audio stream.\n"
-    echo -e "-g, --purge"
-    echo -e "   Set this if you don't want to keep any downloaded files.\n"
-    exit 0
+cat >&2 << EOF
+
+stuff2vola.sh help page
+
+-h, --help
+    Show this help message.
+
+-l, --link <upload_target>
+    Download and the upload stuff from the web. Every argument that is not prepended
+    with suitable option will be treated as upload target.
+
+-r, --room <room_name>
+    Specifiy upload room. (This plus at least one upload target is the only
+    required option to upload something).
+
+-n, --nick <name>
+    Specify name, under which your file(s) will be uploaded.
+
+-p, -pass <password>
+    Set your account password. If you upload as logged user, file
+    uploads will count towards your file stats on Volafile.
+    See https://volafile.org/user/<your_username>
+
+-a, --upload-as <renamed_file>
+    Upload file with custom name.
+
+-d, --dir <destination_directory>
+    If you will specify this option, all of your downloaded files will be saved
+    into the given directory.
+
+-o, --audio-only
+    If file you want forward to Volafile is a video, this option will strip video
+    stream from it and upload only audio stream.
+
+-b, --best-quality
+    Script downloads videos in 720p resolution by default. Set this option do download video
+    with highest resolution avaliable.
+
+EOF
+exit 0
+
 }
 
 if [[ -z "$(which curlbar)" ]]; then
@@ -103,36 +117,14 @@ else
     cURL="curlbar"
 fi
 
-ask_keep() {
-    echo -e "Do you want to keep \033[1m$(basename "$1")\033[22m?"
-    while true; do
-        local yn; printf "\033[32m[Y]es\033[0m/\033[31m[N]o\033[0m) "; read -e yn
-        case "$yn" in
-            [Yy]*) local path2stuff;
-                while true; do
-                    printf "\033[32mDirectory name:\033[0m "; read -e path2stuff
-                    path2stuff="${path2stuff/#\~/$HOME}"
-                    if [[ -d "$path2stuff" ]]; then
-                        mv -f "$1" "$path2stuff" ; return
-                    else
-                        echo "You didn't specify a valid directory!"; continue
-                    fi
-                done ;;
-            [Nn]*) break ;;
-            * )  continue ;;
-        esac
-    done
-}
-
 skip() {
     printf "\033[31m" >&2
     case $1 in
-        0 ) printf "\033[0m" >&2; return 0 ;;
+        0 | 102 ) printf "\033[0m" >&2; return 0 ;;
         6 ) echo -e "\n$2: This link is busted. Try with a valid one.\033[0m" >&2; return 1;;
         * ) echo -e "\ncURL error of code $1 happend.\033[0m" >&2; return 1 ;;
     esac
 }
-
 
 getContentType(){
     local FIFO="content-type"
@@ -228,7 +220,11 @@ postStuff() {
     if [[ $A_ONLY == "true" ]]; then
         local args=$'-ixf\rbestaudio/wav/opus/mp3/m4a/ogg'
     else
-        local args=$'-if\rbestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/mp4/webm/wav/mp3/m4a/ogg'
+        if [[ $BEST_Q == "true" ]]; then
+            local args=$'-if\rbestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4/webm/wav/mp3/m4a/ogg'
+        else
+            local args=$'-if\rbestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/mp4/webm/wav/mp3/m4a/ogg'
+        fi
     fi
     local dir
     local ftype
@@ -277,18 +273,23 @@ postStuff() {
         fi
 
     done
+    if [[ -n "$NICK" ]]; then
+        ARG_PREP="${ARG_PREP}-n$IFS$NICK$IFS"
+    fi
+    if [[ -n "$PASSWORD" ]]; then
+        ARG_PREP="${ARG_PREP}-p$IFS$PASSWORD$IFS"
+    fi
+    if [[ -n "$ROOM" ]]; then
+        ARG_PREP="${ARG_PREP}-r$IFS$ROOM$IFS"
+    fi
     printf "%s" "$ARG_PREP" | xargs -d "$IFS" volaupload.sh \
-        -r "$ROOM" -n "$NICK" -p "$PASSWORD"  || cleanup "3" "Error on the volaupload.sh side.\n"
+          || cleanup "3" "Error on the volaupload.sh side.\n"
     if [[ -n "$PURGE" ]]; then
         cleanup "0"
     else
         if [[ -d "$VID_DIR" ]] ; then
             for f in $FILE_LIST ; do
                 mv -f "$f" "$VID_DIR"
-            done
-        else
-            for f in $FILE_LIST ; do
-                ask_keep "$f"
             done
         fi
         cleanup "0"

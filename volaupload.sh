@@ -2,7 +2,7 @@
 # shellcheck disable=SC2086
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=1.2
+__VOLAUPLOADSH_VERSION__=1.3
 
 if ! OPTS=$(getopt --options hu:r:cn:p:a:t:wm \
     --longoptions help,upload:,room:,call,nick:,password:,upload-as:,retries:,watch,most-new \
@@ -10,25 +10,21 @@ if ! OPTS=$(getopt --options hu:r:cn:p:a:t:wm \
     echo -e "\nFiled parsing options.\n" ; exit 1
 fi
 
-######################################################################################
-# You can add ROOM, NICK and/or PASSWORD variable to your shell config as such:      #
-# export ROOM="BEEPi" ; export NICK="dude" ; export PASSWORD="cuck" so you wouldn't  #
-# have to pass them every time you want to upload something. Using parameters will   #
-# override variables from the shell config. This inherently applies to stuff2vola.sh #
-######################################################################################
+if [[ -f "$HOME/.volascriptsrc" ]]; then
+    #shellcheck disable=SC1090
+    source "$HOME/.volascriptsrc"
+fi
 
 #Remove space from IFS so we can upload files that contain spaces.
 #I use little hack here, I replaced default separator from space to
 #carrige return so we can iterate over the TARGETS variable without
 #a fear of splitting filenames.
-
 IFS=$'\r'
 eval set -- "$OPTS"
 
 SERVER="https://volafile.org"
 COOKIE="/tmp/cuckie"
 RETRIES="3"
-
 #Return non zero value when script gets interrupted with Ctrl+C or some error occurs
 # and remove the cookie
 handle_exit() {
@@ -48,12 +44,7 @@ while true; do
     case "$1" in
         -h | --help) HELP="true" ; shift ;;
         -u | --upload) TARGETS="${TARGETS}${2}$IFS" ; shift 2 ;;
-        -r | --room)
-            if [[ "$2" =~ [a-zA-Z0-9_-]{3,20}$ ]]; then
-                ROOM="${BASH_REMATCH[0]}"
-            else
-                handle_exit "2" "Sorry my dude, but your room ID doesn't match Volafile's format!\n"
-            fi ; shift 2 ;;
+        -r | --room) ROOM="$2"; shift 2 ;;
         -c | --call) CALL="true"; shift ;;
         -n | --nick) NICK="$2" ; shift 2 ;;
         -p | --password) PASSWORD="$2" ; shift 2 ;;
@@ -91,38 +82,52 @@ else
 fi
 
 print_help() {
-    echo -e "\nvolaupload.sh help page\n"
-    echo -e "-h, --help"
-    echo -e "   Show this help message.\n"
-    echo -e "-u, --upload <upload_target>"
-    echo -e "   Upload a file or whole directory. Every argument that is not prepended"
-    echo -e "   with suitable option will be treated as upload target.\n"
-    echo -e "-r, --room <room_name>"
-    echo -e "   Specifiy upload room. (This plus at least one upload target is the only"
-    echo -e "   required option to upload something).\n"
-    echo -e "-c, --call <method> <query>"
-    echo -e "   Make Rest API call.\n"
-    echo -e "-n, --nick <name>"
-    echo -e "   Specify name, under which your file(s) will be uploaded.\n"
-    echo -e "-p, -pass <password>"
-    echo -e "   Specify your account password. If you upload as logged user, file"
-    echo -e "   uploads will count towards your file stats on Volafile."
-    echo -e "   See https://volafile.org/user/<your_username>\n"
-    echo -e "-a, --upload-as <renamed_file>"
-    echo -e "   Upload file with custom name. (It won't overwrite the filename in your"
-    echo -e "   fielsystem). You can upload multiple renamed files.\n"
-    echo -e "   Example:"
-    echo -e "       volaupload.sh -r BEPPi file1.jpg file2.png -a funny.jpg -a nasty.png"
-    echo -e "   First occurence of -a parameter always renames first given file and so on.\n"
-    echo -e "-t, --retries <number>"
-    echo -e "   Specify number of retries when upload fails. Defaults to 3."
-    echo -e "   You can't retry more than 9 times.\n"
-    echo -e "-w, --watch <directory>"
-    echo -e "   Makes your script to watch over specific directory. Every file added"
-    echo -e "   to that directory will be uploaded to Volafile. (To exit press Ctrl+C)\n"
-    echo -e "-m, --most-new <directory>"
-    echo -e "   Uploads only the first file that was recently modified in specified directory\n"
-    exit 0
+cat >&2 << EOF
+
+volaupload.sh help page
+
+-h, --help
+   Show this help message.
+
+-u, --upload <upload_target>
+   Upload a file or whole directory. Every argument that is not prepended
+   with suitable option will be treated as upload target.
+
+-r, --room <room_name>
+   Specifiy upload room. (This plus at least one upload target is the only
+   required option to upload something).
+
+-c, --call <method> <query>
+   Make Rest API call.
+
+-n, --nick <name>
+   Specify name, under which your file(s) will be uploaded.
+
+-p, -pass <password>
+   Specify your account password. If you upload as logged user, file
+   uploads will count towards your file stats on Volafile.
+   See https://volafile.org/user/<your_username>
+
+-a, --upload-as <renamed_file>
+   Upload file with custom name. (It won't overwrite the filename in your
+   fielsystem). You can upload multiple renamed files.
+   Example:
+       volaupload.sh -r BEPPi file1.jpg file2.png -a funny.jpg -a nasty.png
+   First occurence of -a parameter always renames first given file and so on.
+
+-t, --retries <number>
+   Specify number of retries when upload fails. Defaults to 3.
+   You can't retry more than 9 times.
+
+-w, --watch <directory>
+   Makes your script to watch over specific directory. Every file added
+   to that directory will be uploaded to Volafile. (To exit press Ctrl+C)
+
+-m, --most-new <directory>
+   Uploads only the first file that was recently modified in specified directory
+
+EOF
+exit 0
 }
 
 
@@ -302,6 +307,14 @@ elif [[ $argc == 2 ]] && [[ -n "$CALL" ]]; then
         handle_exit "$?" "cURL error of code $error happend."
     fi
     handle_exit "0"
+fi
+if [[ ${#ROOM_ALIASES[@]} -gt 0 ]]; then
+    for a in "${ROOM_ALIASES[@]}"; do
+        if [[ "$ROOM" == "$(echo "$a" | cut -d'=' -f1)" ]]; then
+            ROOM="$(echo "$a" | cut -d'=' -f2)"
+            break
+        fi
+    done
 fi
 if [[ -n "$ROOM" ]] ; then
     ROOM=$(curl -fsLH "Referer: $SERVER" -H "Accept: text/values" \
