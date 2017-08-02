@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2086
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=1.3
+__VOLAUPLOADSH_VERSION__=1.4
 
 if ! OPTS=$(getopt --options hu:r:cn:p:a:t:wm \
     --longoptions help,upload:,room:,call,nick:,password:,upload-as:,retries:,watch,most-new \
@@ -23,7 +22,7 @@ IFS=$'\r'
 eval set -- "$OPTS"
 
 SERVER="https://volafile.org"
-COOKIE="/tmp/cuckie"
+COOKIE="/tmp/cuckie_$(head -c4 <(tr -dc '[:alnum:]' < /dev/urandom))"
 RETRIES="3"
 #Return non zero value when script gets interrupted with Ctrl+C or some error occurs
 # and remove the cookie
@@ -43,12 +42,17 @@ handle_exit() {
 while true; do
     case "$1" in
         -h | --help) HELP="true" ; shift ;;
-        -u | --upload) TARGETS="${TARGETS}${2}$IFS" ; shift 2 ;;
-        -r | --room) ROOM="$2"; shift 2 ;;
+        -u | --upload) TARGETS+=("$2") ; shift 2 ;;
+        -r | --room)
+            if [[ "$2" =~ [a-zA-Z0-9_-]{1,20}$ ]]; then
+                ROOM="${BASH_REMATCH[0]}"
+            else
+                handle_exit "2" "Sorry my dude, but your room ID doesn't match Volafile's format!\n"
+            fi ; shift 2 ;;
         -c | --call) CALL="true"; shift ;;
         -n | --nick) NICK="$2" ; shift 2 ;;
         -p | --password) PASSWORD="$2" ; shift 2 ;;
-        -a | --upload-as) RENAMES="${RENAMES}${2}$IFS" ; shift 2 ;;
+        -a | --upload-as) RENAMES+=("$2") ; shift 2 ;;
         -t | --retries) RETRIES="$2"
             re="^[0-9]$"
             if ! [[ "$RETRIES" =~ $re ]] || [[ "$RETRIES" -lt 0 ]]; then
@@ -59,7 +63,7 @@ while true; do
         -m | --most-new) NEWEST="true" ; shift ;;
         --) shift;
             until [[ -z "$1" ]]; do
-                TARGETS="${TARGETS}${1}$IFS" ; shift
+                TARGETS+=("$1") ; shift
             done ; break ;;
         * ) shift ;;
     esac
@@ -221,13 +225,13 @@ doUpload() {
 
     # -f option makes curl return error 22 on server responses with code 400 and higher
     if [[ -z "$renamed" ]]; then
-        echo -e "\033[32m<^> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m" >&2
+        echo -e "\033[32m</\\> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m" >&2
         printf "\033[33m" >&2 #curlbar prints stuff to stderr so we change color in that descriptor
         $cURL -1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
             "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
     else
-        echo -e "\033[32m<^> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m" >&2
+        echo -e "\033[32m</\\> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m" >&2
         echo -e "-> File renamed to: \033[1m${renamed}\033[22m" >&2
         printf "\033[33m" >&2
         $cURL -1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
@@ -271,7 +275,7 @@ tryUpload() {
                 sleep 1
                 ((penalty--))
             done
-            printf "\033[0m"
+            printf "\033[0G\033[2K\033[0m"
         else
             echo -e "\033[33mcURL error nr ${handle[0]} happend.\033[0m\n" >&2
             echo -e "\033[33mRetrying upload after 5 seconds ...\033[0m\n" >&2
@@ -291,16 +295,15 @@ getExtension() {
     fi
 }
 
-howmany() ( set -f; set -- $1; echo $# )
 declare -i argc
-argc=$(howmany "$TARGETS")
+argc=${#TARGETS[@]}
 
 if [[ -n "$HELP" ]]; then
     print_help
 elif [[ $argc -eq 0 ]]; then
     handle_exit "4" "You didn't specify any files that can be uploaded!\n"
 elif [[ $argc == 2 ]] && [[ -n "$CALL" ]]; then
-    set -f ; set -- $TARGETS
+    set -f ; set -- "${TARGETS[@]}"
     declare -i error
     makeApiCall "$1" "$2"; error="$?"
     if [[ "$error" -ne 0 ]]; then
@@ -317,9 +320,8 @@ if [[ ${#ROOM_ALIASES[@]} -gt 0 ]]; then
     done
 fi
 if [[ -n "$ROOM" ]] ; then
-    ROOM=$(curl -fsLH "Referer: $SERVER" -H "Accept: text/values" \
-        "https://volafile.org/r/$ROOM" | grep -oP "\"room_id\s*\"\s*:\s*\"\K[a-zA-Z0-9-_]+(?=\",)")
-    if [[ "$?" -ne 0 ]]; then
+    if ! ROOM=$(curl -fsLH "Referer: $SERVER" -H "Accept: text/values" \
+        "$SERVER/r/$ROOM" | grep -oP "\"room_id\s*\"\s*:\s*\"\K[a-zA-Z0-9-_]+(?=\",)"); then
         handle_exit "5" "Room you specified doesn't exist, or Vola is busted for good this time!\n"
     fi
 fi
@@ -329,18 +331,22 @@ elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
     if [[ -z "$(which inotifywait)" ]]; then
         handle_exit "6" "Please install inotify-tools package in order to use this feature.\n"
     fi
-    TARGET=$(echo "$TARGETS" | tr -d "\r")
+    TARGET=$(echo "${TARGETS[0]}" | tr -d "\r")
     if [[ -d "$TARGET" ]]; then
+        declare stop_double_upload=""
         inotifywait -m -e moved_to -e create --format '%w%f' "$TARGET" | \
             while read -r dir file; do
-                tryUpload "${dir}${file}" "$ROOM" "$NICK" "$PASSWORD"
+                if [[ $stop_double_upload != "${dir}${file}" ]]; then
+                    tryUpload "${dir}${file}" "$ROOM" "$NICK" "$PASSWORD"
+                fi
+                stop_double_upload="${dir}${file}"
             done
     else
         handle_exit "7" "You have to specify the directory that can be watched.\n"
     fi
 elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
-    set -- $RENAMES
-    for t in $TARGETS ; do
+    set -- "${RENAMES[@]}"
+    for t in "${TARGETS[@]}" ; do
         if [[ -d "$t" ]] && [[ -n "$NEWEST" ]]; then
             file=$(find "$t" -maxdepth 1 -type f -printf '%T@ %p\n' \
                 | sort -n | tail -n1 | cut -d' ' -f2-)

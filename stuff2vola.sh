@@ -2,7 +2,7 @@
 # shellcheck disable=SC2155,SC2162,SC2164,SC2103
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=1.3
+__STUFF2VOLASH_VERSION__=1.4
 
 if ! OPTS=$(getopt --options hl:r:n:p:a:d:ob \
     --longoptions help,link:,room:,nick:,password:,upload-as:,dir:,audio-only,best-quality \
@@ -25,7 +25,6 @@ fi
 eval set -- "$OPTS"
 
 cleanup() {
-    cd "$TMP"
     for d in $DIR_LIST ; do
         rm -rf "$d"
     done
@@ -51,7 +50,7 @@ while true; do
         -a | --upload-as) ASS="${ASS}${2}$IFS"; shift 2;;
         -d | --dir) VID_DIR="$2"
                 if [[ ! -d "$VID_DIR" ]]; then
-                    cleanup "4" "You specified invalid directory.\n"
+                    cleanup "4" "\nYou specified invalid directory.\n"
                 fi
                 if [[ "$VID_DIR" == "." ]]; then
                    VID_DIR="$PWD"
@@ -103,8 +102,8 @@ stuff2vola.sh help page
     stream from it and upload only audio stream.
 
 -b, --best-quality
-    Script downloads videos in 720p resolution by default. Set this option do download video
-    with highest resolution avaliable.
+    Script downloads videos in 720p resolution and lossy audio files like opus or mp3 by
+    default. Set this option to download highest quality video and audio files.
 
 EOF
 exit 0
@@ -121,19 +120,20 @@ skip() {
     printf "\033[31m" >&2
     case $1 in
         0 | 102 ) printf "\033[0m" >&2; return 0 ;;
-        6 ) echo -e "\n$2: This link is busted. Try with a valid one.\033[0m" >&2; return 1;;
-        * ) echo -e "\ncURL error of code $1 happend.\033[0m" >&2; return 1 ;;
+        22) echo -e "\n$2: No such file on the interwebs.\033[0m\n" >&2; return 1 ;;
+        6 ) echo -e "\n$2: This link is busted or its not a link at all. Try with a valid one.\033[0m\n" >&2; return 1;;
+        * ) echo -e "\ncURL error of code $1 happend.\033[0m\n" >&2; return 1 ;;
     esac
 }
 
 getContentType(){
-    local FIFO="content-type"
-    local status="status-file"
+    local FIFO="$1/content-type"
+    local status="$1/status-file"
     local curl_pid
     mkfifo "$FIFO"
 
     ( set +e
-    curl -sLI "$1" >> "$FIFO"
+    curl -fsLI "$2" >> "$FIFO"
     echo "$?" >> "$status"
     echo >> "$FIFO"
     sync
@@ -157,7 +157,7 @@ getContentType(){
             lastredirect=0
         fi
         if [[ $lastredirect -eq 0 ]] && [[ "${line[0]}" == "content-type:" ]]; then
-            filetype=$(echo "${line[1]}" | tr -d ';[:space:]')
+            filetype=$(echo "${line[1]%%;*}" | tr -d '[:space:]')
         fi
     done
     sync
@@ -165,12 +165,12 @@ getContentType(){
     kill -9 "$curl_pid" 2>/dev/null || true
     echo -n "$filetype"
     }
-    return "$(cat $status)"
+    return "$(cat "$status")"
 }
 
 youtube-dlBar() {
 # shellcheck disable=SC2068
-youtube-dl --newline -o "%(title)s.%(ext)s" $@ 2>&1 | \
+youtube-dl --newline $@ 2>&1 | \
     sed -nu \
     -e '/^\[download\]/p' \
     -e '/^WARNING:/p' \
@@ -218,54 +218,59 @@ return 0
 
 postStuff() {
     if [[ $A_ONLY == "true" ]]; then
-        local args=$'-ixf\rbestaudio/wav/opus/mp3/m4a/ogg'
+        local args=$'-ixf\nbestaudio/wav/opus/mp3/m4a/ogg'
     else
         if [[ $BEST_Q == "true" ]]; then
-            local args=$'-if\rbestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4/webm/wav/mp3/m4a/ogg'
+            local args=$'-if\nbestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4/webm/bestaudio'
         else
-            local args=$'-if\rbestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/mp4/webm/wav/mp3/m4a/ogg'
+            local args=$'-if\nbestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/mp4/webm/opus/mp3/ogg'
         fi
     fi
     local dir
     local ftype
     local error
     local file
+    local raw
     local f
 
-    cd "$TMP"
     for l in $LINKS ; do
-        dir="volastuff_$(head -c4 <(tr -dc '[:alnum:]' < /dev/urandom))"
+        dir="$TMP/volastuff_$(head -c4 <(tr -dc '[:alnum:]' < /dev/urandom))"
         DIR_LIST="${DIR_LIST}${dir}$IFS"
         mkdir -p "$dir"
-        cd "$dir"
-        ftype="$(getContentType "$l")"
+        ftype="$(getContentType "$dir" "$l")"
         error="$?"
         skip "$error" "$l" || continue
-        echo -e "\033[32m<v> Downloading to \033[1m$TMP/$dir\033[22m"
-        printf "\033[33m"
+        echo -e "\033[32m<\\/> Downloading \033[1m$l\033[22m \033[33m"
         if [[ "$ftype" == "text/html" ]]; then
-            youtube-dlBar "$args" "$l"
+            youtube-dlBar "-o" "$dir/%(title)s.%(ext)s" "$args" "$l"
         else
-            $cURL -L "$l" > "$(basename "$l")"
+            echo "Destination: $dir/$(basename "$l")"
+            $cURL -L "$l" > "$dir/$(basename "$l")"
         fi
         error="$?"
         printf "\033[0m\n"
         skip "$error" "$l" || continue
-        file=$(find -maxdepth 1 -regextype posix-egrep -regex ".+\.[a-zA-Z0-9?=&_]{2,70}$" -printf "%f$IFS")
-        mv -f "$file" "$(echo "$file" | sed -r "s/^(.*\.[0-9a-zA-Z]{1,4}).*/\1/")" 2>/dev/null
-        if [[ -n "$file" ]]; then
-            for f in $file ; do
-                FILE_LIST="${FILE_LIST}${dir}/${f}$IFS"
-            done
+        IFS=$'\n'
+        raw=$(find "$dir" -maxdepth 1 -regextype posix-egrep -regex ".+\.[a-zA-Z0-9\%\?=&_-]+$" \
+            -printf "%f$IFS" | sort -n)
+        file="$(echo "$raw" | sed -r "s/^(.*\.[0-9a-zA-Z]{1,4}).*/\1/")"
+        #if [[ "$(echo -e "$raw" | grep -o "$IFS" | wc -l)" -eq 1 ]]; then
+            #mv -f "$dir/${raw//$IFS}" "$dir/$file" 2>/dev/null
+        #fi
+        if [[ -z "$file" ]]; then
+            file="$raw"
         fi
-        cd ..
+        for f in $file ; do
+            FILE_LIST+=("${dir}/${f}")
+        done
+        IFS=$'\r'
     done
     if [[ ${#FILE_LIST} -eq 0 ]]; then
         cleanup "2" "Any of your links weren't valid. Closing the party.\n"
     fi
     #shellcheck disable=SC2086
     set -- $ASS
-    for f in $FILE_LIST ; do
+    for f in "${FILE_LIST[@]}" ; do
         if [[ -n "$1" ]]; then
             ARG_PREP="${ARG_PREP}-a$IFS${1}$IFS${f}$IFS" ; shift
         else
@@ -284,16 +289,12 @@ postStuff() {
     fi
     printf "%s" "$ARG_PREP" | xargs -d "$IFS" volaupload.sh \
           || cleanup "3" "Error on the volaupload.sh side.\n"
-    if [[ -n "$PURGE" ]]; then
-        cleanup "0"
-    else
-        if [[ -d "$VID_DIR" ]] ; then
-            for f in $FILE_LIST ; do
-                mv -f "$f" "$VID_DIR"
-            done
-        fi
-        cleanup "0"
+    if [[ -d "$VID_DIR" ]] ; then
+        for f in "${FILE_LIST[@]}" ; do
+            mv -f "$f" "$VID_DIR"
+        done
     fi
+    cleanup "0"
 }
 
 trap cleanup SIGHUP SIGTERM SIGINT
