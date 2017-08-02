@@ -47,7 +47,7 @@ while true; do
         -r | --room ) ROOM="$2"; shift 2;;
         -n | --nick) NICK="$2" ; shift 2 ;;
         -p | --password) PASSWORD="$2" ; shift 2 ;;
-        -a | --upload-as) ASS="${ASS}${2}$IFS"; shift 2;;
+        -a | --upload-as) ASS+=("$2"); shift 2;;
         -d | --dir) VID_DIR="$2"
                 if [[ ! -d "$VID_DIR" ]]; then
                     cleanup "4" "\nYou specified invalid directory.\n"
@@ -59,7 +59,7 @@ while true; do
         -b | --best-quality) BEST_Q="true"; shift ;;
         --) shift;
             until [[ -z "$1" ]]; do
-                LINKS="${LINKS}${1}$IFS" ; shift
+                LINKS+=("$1") ; shift
             done ; break ;;
         * ) shift ;;
     esac
@@ -233,7 +233,7 @@ postStuff() {
     local raw
     local f
 
-    for l in $LINKS ; do
+    for l in "${LINKS[@]}" ; do
         dir="$TMP/volastuff_$(head -c4 <(tr -dc '[:alnum:]' < /dev/urandom))"
         DIR_LIST="${DIR_LIST}${dir}$IFS"
         mkdir -p "$dir"
@@ -269,7 +269,7 @@ postStuff() {
         cleanup "2" "Any of your links weren't valid. Closing the party.\n"
     fi
     #shellcheck disable=SC2086
-    set -- $ASS
+    set -- "${ASS[@]}"
     for f in "${FILE_LIST[@]}" ; do
         if [[ -n "$1" ]]; then
             ARG_PREP="${ARG_PREP}-a$IFS${1}$IFS${f}$IFS" ; shift
@@ -301,7 +301,7 @@ trap cleanup SIGHUP SIGTERM SIGINT
 
 if [[ -n $HELP ]]; then
     print_help
-elif [[ -z "$LINKS" ]]; then
+elif [[ "${#LINKS[@]}" -eq 0 ]]; then
     cleanup "1" "My dude, comon. You tried to download nothing.\n"
 else
     postStuff
