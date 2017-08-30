@@ -10,8 +10,8 @@ Disclaimer
 `volaupload.sh` was originally made by [lain](https://github.com/laino) and Xiao. It seemed
 to be abandoned so I enhanced it with agrument parsing and some other features.
 
-volaupload.sh
--------------
+volaupload.sh ver. 1.4
+----------------------
 
 This script allows you to upload files to [Volafile](https://volafile.org)
 without using the browser. This is convenient, since it allows you to upload
@@ -19,8 +19,8 @@ files with different names without a need to rename them beforehand.
 Use -h or --help command for full list of capabilities. Check insides of this script
 for information on how to preset your room, nick and password.
 
-stuff2vola.sh (vid2vola.sh before)
-----------------------------------
+stuff2vola.sh ver. 1.5
+----------------------
 
 Are you a fan of redundancy and don't want to post links to stuff in a chat like a pleb?
 Than this is a script for you. It will download most content from the web and upload it to
@@ -28,6 +28,14 @@ designeted Volafile room. Script can take multiple arguments just like volauploa
 Script doesn't save downloaded files by default. If you want to keep downloaded files, please
 specify download directory with the -d option.
 Invoke script with -h or --help command to list other options.
+
+volacrypt.sh ver. 1.0
+---------------------
+
+With this script you are able to upload and retrive files encrypted with symmetric AES256
+algorithm. If you will supply the script with a file, it will encrypt it and upload to
+a specified room. If you will specify valid volafile link, script will download and
+decrypt it.
 
 Prerequsites
 ------------
@@ -39,6 +47,8 @@ Prerequsites
 - [ffmpeg](http://ffmpeg.org/download.html)
 - [curlbar](https://gist.github.com/Szero/cd496ca43df4b871df75818ebcc40233)
     * (required for riced upload bar)
+- [gpg](https://www.gnupg.org/download)
+    * (required for volacrypt.sh)
 
 ### Optional:
 
@@ -78,7 +88,7 @@ want to specify every time you upload something. Possible values to set:
 ```bash
 # Room you want to upload by default.
 ROOM="HF33Go"
-# Your nick and password if you wan't to upload as logged user so
+# Your nick and password if you want to upload as logged user so
 # uploads counts toward your profile statistics.
 NICK="somedude"
 PASSWORD="somepass"

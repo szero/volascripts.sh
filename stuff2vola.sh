@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155,SC2162,SC2164,SC2103
+# shellcheck disable=SC2155
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=1.4
+__STUFF2VOLASH_VERSION__=1.5
 
-if ! OPTS=$(getopt --options hl:r:n:p:a:d:ob \
-    --longoptions help,link:,room:,nick:,password:,upload-as:,dir:,audio-only,best-quality \
+if ! OPTS=$(getopt --options hr:n:p:a:d:ob \
+    --longoptions help,room:,nick:,password:,upload-as:,dir:,audio-only,best-quality \
     -n 'vid2vola.sh' -- "$@"); then
     echo -e "\nFiled parsing options.\n" ; exit 1
 fi
@@ -16,13 +16,12 @@ if [[ -f "$HOME/.volascriptsrc" ]]; then
 fi
 
 IFS=$'\r'
+
 if [ -z "$TMPDIR" ]; then
     TMP="/tmp"
 else
     TMP="${TMPDIR%/}"
 fi
-
-eval set -- "$OPTS"
 
 cleanup() {
     for d in $DIR_LIST ; do
@@ -40,10 +39,11 @@ cleanup() {
     done;  exit "$exit_code"
 }
 
+eval set -- "$OPTS"
+
 while true; do
     case "$1" in
         -h | --help) HELP="true" ; shift ;;
-        -l | --link ) LINKS="${LINKS}${2}$IFS"; shift 2;;
         -r | --room ) ROOM="$2"; shift 2;;
         -n | --nick) NICK="$2" ; shift 2 ;;
         -p | --password) PASSWORD="$2" ; shift 2 ;;
@@ -71,12 +71,12 @@ cat >&2 << EOF
 
 stuff2vola.sh help page
 
+    Download stuff from the web and than upload it to volafile.
+    Every argument that is not prepended with any
+    option will be treated as upload-after-download target.
+
 -h, --help
     Show this help message.
-
--l, --link <upload_target>
-    Download and the upload stuff from the web. Every argument that is not prepended
-    with suitable option will be treated as upload target.
 
 -r, --room <room_name>
     Specifiy upload room. (This plus at least one upload target is the only
@@ -254,11 +254,10 @@ postStuff() {
         raw=$(find "$dir" -maxdepth 1 -regextype posix-egrep -regex ".+\.[a-zA-Z0-9\%\?=&_-]+$" \
             -printf "%f$IFS" | sort -n)
         file="$(echo "$raw" | sed -r "s/^(.*\.[0-9a-zA-Z]{1,4}).*/\1/")"
-        #if [[ "$(echo -e "$raw" | grep -o "$IFS" | wc -l)" -eq 1 ]]; then
-            #mv -f "$dir/${raw//$IFS}" "$dir/$file" 2>/dev/null
-        #fi
         if [[ -z "$file" ]]; then
             file="$raw"
+        else
+            mv -f "$dir/$raw" "$dir/$file" 2>/dev/null
         fi
         for f in $file ; do
             FILE_LIST+=("${dir}/${f}")

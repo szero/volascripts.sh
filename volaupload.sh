@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=1.4
+__VOLAUPLOADSH_VERSION__=1.5
 
-if ! OPTS=$(getopt --options hu:r:cn:p:a:t:wm \
-    --longoptions help,upload:,room:,call,nick:,password:,upload-as:,retries:,watch,most-new \
+if ! OPTS=$(getopt --options hr:cn:p:a:t:wm \
+    --longoptions help,room:,call,nick:,password:,upload-as:,retries:,watch,most-new \
     -n 'volaupload.sh' -- "$@") ; then
     echo -e "\nFiled parsing options.\n" ; exit 1
 fi
@@ -19,10 +19,15 @@ fi
 #carrige return so we can iterate over the TARGETS variable without
 #a fear of splitting filenames.
 IFS=$'\r'
-eval set -- "$OPTS"
+
+if [ -z "$TMPDIR" ]; then
+    TMP="/tmp"
+else
+    TMP="${TMPDIR%/}"
+fi
 
 SERVER="https://volafile.org"
-COOKIE="/tmp/cuckie_$(head -c4 <(tr -dc '[:alnum:]' < /dev/urandom))"
+COOKIE="$TMP/cuckie_$(head -c4 <(tr -dc '[:alnum:]' < /dev/urandom))"
 RETRIES="3"
 #Return non zero value when script gets interrupted with Ctrl+C or some error occurs
 # and remove the cookie
@@ -36,13 +41,14 @@ handle_exit() {
     fi
     for failure in "${@:2}"; do
         echo -e "\033[31m$failure\033[0m" >&2
-    done; rm -f "$COOKIE" ;  exit "$exit_code"
+    done; rm -f "$COOKIE" "$stuff" ;  exit "$exit_code"
 }
+
+eval set -- "$OPTS"
 
 while true; do
     case "$1" in
         -h | --help) HELP="true" ; shift ;;
-        -u | --upload) TARGETS+=("$2") ; shift 2 ;;
         -r | --room)
             if [[ "$2" =~ [a-zA-Z0-9_-]{1,20}$ ]]; then
                 ROOM="${BASH_REMATCH[0]}"
@@ -79,10 +85,10 @@ skip() {
     done; rm -f "$COOKIE"
 }
 
-if [[ -z "$(which curlbar)" ]]; then
-    cURL="curl"
-else
+if [[ $(type curlbar 2>/dev/null) ]]; then
     cURL="curlbar"
+else
+    cURL="curl"
 fi
 
 print_help() {
@@ -90,12 +96,11 @@ cat >&2 << EOF
 
 volaupload.sh help page
 
+   Upload files or whole directories to volafile. Every argument that is
+   not prepended with any option will be treated as upload target.
+
 -h, --help
    Show this help message.
-
--u, --upload <upload_target>
-   Upload a file or whole directory. Every argument that is not prepended
-   with suitable option will be treated as upload target.
 
 -r, --room <room_name>
    Specifiy upload room. (This plus at least one upload target is the only
@@ -132,12 +137,6 @@ volaupload.sh help page
 
 EOF
 exit 0
-}
-
-
-bad_arg() {
-    echo -e "\n\033[33;1m${1}\033[22m: This argument isn't a file or a directory. Skipping ...\033[0m\n" >&2
-    echo -e "Use -h or --help to check program usage.\n" >&2
 }
 
 extract() {
@@ -367,10 +366,23 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
             done
         elif [[ -f "$t" ]] && [[ -n "$1" ]]; then
             tryUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "$(getExtension "$1" "$t")" ; shift
-        elif [[ -f "$t" ]]; then
+        elif [[ -f "$t" ]] ; then
             tryUpload "$t" "$ROOM" "$NICK" "$PASSWORD"
+        elif [[ "$(readlink "$t")" == "pipe:"* ]]; then
+            stuff="$(mktemp)"
+            cat "$t" > "$stuff"
+            #mv "$stuff" "$TMP/$(< "$stuff" head -qn1 | tr -s " ")"
+            while read -r line; do
+                rename=$(echo "$line" | tr -s " ")
+                if [[ -n "$rename" ]]; then
+                    break
+                fi
+            done < "$stuff"
+            tryUpload "$stuff" "$ROOM" "$NICK" "$PASSWORD" "$rename"
         else
-            bad_arg "$t" ; shift
+            echo -e "\n\033[33;1m${t}\033[22m: This argument isn't a file or a directory. Skipping ...\033[0m\n" >&2
+            echo -e "Use -h or --help to check program usage.\n" >&2
+            shift
         fi
     done
     handle_exit "0"
