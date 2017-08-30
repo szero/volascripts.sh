@@ -371,7 +371,6 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
         elif [[ "$(readlink "$t")" == "pipe:"* ]]; then
             stuff="$(mktemp)"
             cat "$t" > "$stuff"
-            #mv "$stuff" "$TMP/$(< "$stuff" head -qn1 | tr -s " ")"
             while read -r line; do
                 rename=$(echo "$line" | tr -s " ")
                 if [[ -n "$rename" ]]; then
