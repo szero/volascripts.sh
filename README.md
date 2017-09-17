@@ -10,7 +10,7 @@ Disclaimer
 `volaupload.sh` was originally made by [lain](https://github.com/laino) and Xiao. It seemed
 to be abandoned so I enhanced it with agrument parsing and some other features.
 
-volaupload.sh ver. 1.5
+volaupload.sh ver. 1.6
 ----------------------
 
 This script allows you to upload files to [Volafile](https://volafile.org)
@@ -19,7 +19,7 @@ files with different names without a need to rename them beforehand.
 Use -h or --help command for full list of capabilities. Check insides of this script
 for information on how to preset your room, nick and password.
 
-stuff2vola.sh ver. 1.5
+stuff2vola.sh ver. 1.6
 ----------------------
 
 Are you a fan of redundancy and don't want to post links to stuff in a chat like a pleb?
@@ -29,7 +29,7 @@ Script doesn't save downloaded files by default. If you want to keep downloaded 
 specify download directory with the -d option.
 Invoke script with -h or --help command to list other options.
 
-volacrypt.sh ver. 1.0
+volacrypt.sh ver. 1.1
 ---------------------
 
 With this script you are able to upload and retrive files encrypted with symmetric AES256

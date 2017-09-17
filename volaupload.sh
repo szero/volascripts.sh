@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=1.5
+__VOLAUPLOADSH_VERSION__=1.6
 
-if ! OPTS=$(getopt --options hr:cn:p:a:t:wm \
-    --longoptions help,room:,call,nick:,password:,upload-as:,retries:,watch,most-new \
+if ! OPTS=$(getopt --options hr:cn:p:u:a:t:wm \
+    --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,retries:,watch,most-new \
     -n 'volaupload.sh' -- "$@") ; then
     echo -e "\nFiled parsing options.\n" ; exit 1
 fi
@@ -56,9 +56,10 @@ while true; do
                 handle_exit "2" "Sorry my dude, but your room ID doesn't match Volafile's format!\n"
             fi ; shift 2 ;;
         -c | --call) CALL="true"; shift ;;
-        -n | --nick) NICK="$2" ; shift 2 ;;
-        -p | --password) PASSWORD="$2" ; shift 2 ;;
-        -a | --upload-as) RENAMES+=("$2") ; shift 2 ;;
+        -n | --nick) NICK="$2"; shift 2 ;;
+        -p | --pass) PASSWORD="$2"; shift 2 ;;
+        -u | --room-pass) ROOMPASS="$2"; shift 2 ;;
+        -a | --upload-as) RENAMES+=("$2"); shift 2 ;;
         -t | --retries) RETRIES="$2"
             re="^[0-9]$"
             if ! [[ "$RETRIES" =~ $re ]] || [[ "$RETRIES" -lt 0 ]]; then
@@ -112,10 +113,13 @@ volaupload.sh help page
 -n, --nick <name>
    Specify name, under which your file(s) will be uploaded.
 
--p, -pass <password>
-   Specify your account password. If you upload as logged user, file
+-p, --pass <password>
+   Spepasswordnt password. If you upload as logged user, file
    uploads will count towards your file stats on Volafile.
    See https://volafile.org/user/<your_username>
+
+-u, --room-pass <password>
+    You need to specify this only for password protected rooms.
 
 -a, --upload-as <renamed_file>
    Upload file with custom name. (It won't overwrite the filename in your
@@ -184,18 +188,21 @@ doUpload() {
     local room="$2"
     local name="$3"
     local pass="$4"
-    local renamed="$5"
+    local roompass="$5"
+    local renamed="$6"
     local response
     local error
-
+    if [[ -n "$roompass" ]]; then
+        roompass="&password=$roompass"
+    fi
     if [[ -n "$name" ]] && [[ -n "$pass" ]]; then
-        response=$(makeApiCall getUploadKey "name=$name&room=$room" "$name" "$pass")
+        response=$(makeApiCall getUploadKey "name=$name&room=$room$roompass" "$name" "$pass")
     elif [[ -n "$name" ]]; then
-        response=$(makeApiCall getUploadKey "name=$name&room=$room")
+        response=$(makeApiCall getUploadKey "name=$name&room=$room$roompass")
     else
         #If user didn't specify name, default it to Volaphile.
         name="Volaphile"
-        response=$(makeApiCall getUploadKey "name=$name&room=$room")
+        response=$(makeApiCall getUploadKey "name=$name&room=$room$roompass")
     fi
     error="$?"
     case "$error" in
@@ -280,7 +287,7 @@ tryUpload() {
             echo -e "\033[33mRetrying upload after 5 seconds ...\033[0m\n" >&2
             sleep 5
         fi
-        } < <(doUpload "$1" "$2" "$3" "$4" "$5")
+        } < <(doUpload "$1" "$2" "$3" "$4" "$5" "$6")
         ((++i))
     done
     handle_exit "8" "Exceeded maximum number of retries... Closing script."
@@ -336,7 +343,7 @@ elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
         inotifywait -m -e moved_to -e create --format '%w%f' "$TARGET" | \
             while read -r dir file; do
                 if [[ $stop_double_upload != "${dir}${file}" ]]; then
-                    tryUpload "${dir}${file}" "$ROOM" "$NICK" "$PASSWORD"
+                    tryUpload "${dir}${file}" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS"
                 fi
                 stop_double_upload="${dir}${file}"
             done
@@ -350,24 +357,24 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
             file=$(find "$t" -maxdepth 1 -type f -printf '%T@ %p\n' \
                 | sort -n | tail -n1 | cut -d' ' -f2-)
             if [[ -n "$1" ]]; then
-                tryUpload "$file" "$ROOM" "$NICK" "$PASSWORD" "$(getExtension "$1" "$file")"
+                tryUpload "$file" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS" "$(getExtension "$1" "$file")"
             else
-                tryUpload "$file" "$ROOM" "$NICK" "$PASSWORD"
+                tryUpload "$file" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS"
             fi
         elif [[ -d "$t" ]]; then
             shopt -s globstar
             GLOBIGNORE=".:.."
             for f in "${t}"/** ; do
                 if [[ -f "$f" ]] && [[ -n "$1" ]]; then
-                    tryUpload "${f}" "$ROOM" "$NICK" "$PASSWORD" "$(getExtension "$1" "$f")" ; shift
+                    tryUpload "${f}" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS" "$(getExtension "$1" "$f")" ; shift
                 elif [[ -f "$f" ]]; then
-                    tryUpload "${f}" "$ROOM" "$NICK" "$PASSWORD"
+                    tryUpload "${f}" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS"
                 fi
             done
         elif [[ -f "$t" ]] && [[ -n "$1" ]]; then
-            tryUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "$(getExtension "$1" "$t")" ; shift
+            tryUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS" "$(getExtension "$1" "$t")" ; shift
         elif [[ -f "$t" ]] ; then
-            tryUpload "$t" "$ROOM" "$NICK" "$PASSWORD"
+            tryUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS"
         elif [[ "$(readlink "$t")" == "pipe:"* ]]; then
             stuff="$(mktemp)"
             cat "$t" > "$stuff"
@@ -377,7 +384,7 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
                     break
                 fi
             done < "$stuff"
-            tryUpload "$stuff" "$ROOM" "$NICK" "$PASSWORD" "$rename"
+            tryUpload "$stuff" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS" "$rename"
         else
             echo -e "\n\033[33;1m${t}\033[22m: This argument isn't a file or a directory. Skipping ...\033[0m\n" >&2
             echo -e "Use -h or --help to check program usage.\n" >&2

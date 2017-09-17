@@ -2,10 +2,10 @@
 
 #shamelessly adapted from https://github.com/AdrianKoshka/1339secure
 # shellcheck disable=SC2034
-__VOLACRYPTSH_VERSION__=1.0
+__VOLACRYPTSH_VERSION__=1.1
 
-if ! OPTS=$(getopt --alternative --options hr:n:p: \
-    --longoptions help,room:,nick:,password:,pp:,passphrase:,sp,skip-passphrase \
+if ! OPTS=$(getopt --alternative --options hr:n:p:u: \
+    --longoptions help,room:,nick:,pass:,pp:,room-pass:,passphrase:,sp,skip-passphrase \
     -n 'vid2vola.sh' -- "$@"); then
     echo -e "\nFiled parsing options.\n" ; exit 1
 fi
@@ -50,6 +50,7 @@ while true; do
         -r | -room | --room ) ROOM="$2"; shift 2;;
         -n | -nick | --nick) NICK="$2" ; shift 2 ;;
         -p | -password | --password) PASSWORD="$2" ; shift 2 ;;
+        -u | -room-pass | --room-pass) ROOMPASS="$2" ; shift 2 ;;
         -pp | --pp | --passphrase ) PASSPHRASE="$2"; shift 2;;
         -sp | --sp | --skip-passphrase ) SKIP="true"; shift ;;
         --) shift
@@ -117,6 +118,9 @@ function encrypt_upload() {
     fi
     if [[ -n "$ROOM" ]]; then
         ARG_PREP="${ARG_PREP}-r$IFS$ROOM$IFS"
+    fi
+    if [[ -n "$ROOMPASS" ]]; then
+        ARG_PREP="${ARG_PREP}-u$IFS$ROOMPASS$IFS"
     fi
     ARG_PREP="$ARG_PREP$out_file"
     printf "%s" "$ARG_PREP" | xargs -d "$IFS" volaupload.sh || \

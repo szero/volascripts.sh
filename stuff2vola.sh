@@ -2,12 +2,12 @@
 # shellcheck disable=SC2155
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=1.5
+__STUFF2VOLASH_VERSION__=1.6
 
-if ! OPTS=$(getopt --options hr:n:p:a:d:ob \
-    --longoptions help,room:,nick:,password:,upload-as:,dir:,audio-only,best-quality \
+if ! OPTS=$(getopt --options hr:n:p:u:a:d:ob \
+    --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,dir:,audio-only,best-quality \
     -n 'vid2vola.sh' -- "$@"); then
-    echo -e "\nFiled parsing options.\n" ; exit 1
+    echo -e "\nFiled parsing options.\n"; exit 1
 fi
 
 if [[ -f "$HOME/.volascriptsrc" ]]; then
@@ -46,7 +46,8 @@ while true; do
         -h | --help) HELP="true" ; shift ;;
         -r | --room ) ROOM="$2"; shift 2;;
         -n | --nick) NICK="$2" ; shift 2 ;;
-        -p | --password) PASSWORD="$2" ; shift 2 ;;
+        -p | --pass) PASSWORD="$2" ; shift 2 ;;
+        -u | --room-pass) ROOMPASS="$2"; shift 2 ;;
         -a | --upload-as) ASS+=("$2"); shift 2;;
         -d | --dir) VID_DIR="$2"
                 if [[ ! -d "$VID_DIR" ]]; then
@@ -90,6 +91,9 @@ stuff2vola.sh help page
     uploads will count towards your file stats on Volafile.
     See https://volafile.org/user/<your_username>
 
+-u, --room-pass <password>
+    You need to specify this only for password protected rooms.
+
 -a, --upload-as <renamed_file>
     Upload file with custom name.
 
@@ -107,7 +111,6 @@ stuff2vola.sh help page
 
 EOF
 exit 0
-
 }
 
 if [[ -z "$(which curlbar)" ]]; then
@@ -206,6 +209,8 @@ while  read -r -a line; do
         echo -e "Video and audio streams will be downloaded separately and merged together." >&2
     elif  [[ ${line[1]} == "Downloading" ]]; then
         echo -e "\n${line[*]:1}\n" >&2
+    elif [[ ${line[0]} == "WARNING:" ]]; then
+        continue
     elif [[ ${line[0]} == "ERROR:" ]]; then
         echo -e "\033[31m${line[*]:1}. Skipping.\033[33m\n" >&2
     else
@@ -282,6 +287,9 @@ postStuff() {
     fi
     if [[ -n "$PASSWORD" ]]; then
         ARG_PREP="${ARG_PREP}-p$IFS$PASSWORD$IFS"
+    fi
+    if [[ -n "$ROOMPASS" ]]; then
+        ARG_PREP="${ARG_PREP}-u$IFS$ROOMPASS$IFS"
     fi
     if [[ -n "$ROOM" ]]; then
         ARG_PREP="${ARG_PREP}-r$IFS$ROOM$IFS"
