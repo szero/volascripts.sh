@@ -47,6 +47,7 @@ Prerequsites
 - [ffmpeg](http://ffmpeg.org/download.html)
 - [curlbar](https://gist.github.com/Szero/cd496ca43df4b871df75818ebcc40233)
     * (required for riced upload bar)
+    * (requires [bc](https://www.gnu.org/software/bc/) in order to operate)
 - [gpg](https://www.gnupg.org/download)
     * (required for volacrypt.sh)
 
