@@ -2,7 +2,7 @@
 # shellcheck disable=SC2155
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=1.6
+__STUFF2VOLASH_VERSION__=1.7
 
 if ! OPTS=$(getopt --options hr:n:p:u:a:d:ob \
     --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,dir:,audio-only,best-quality \
@@ -238,6 +238,7 @@ postStuff() {
     local raw
     local f
 
+    set -- "${ASS[@]}"
     for l in "${LINKS[@]}" ; do
         dir="$TMP/volastuff_$(head -c4 <(tr -dc '[:alnum:]' < /dev/urandom))"
         DIR_LIST="${DIR_LIST}${dir}$IFS"
@@ -257,31 +258,29 @@ postStuff() {
         skip "$error" "$l" || continue
         IFS=$'\n'
         raw=$(find "$dir" -maxdepth 1 -regextype posix-egrep -regex ".+\.[a-zA-Z0-9\%\?=&_-]+$" \
-            -printf "%f$IFS" | sort -n)
-        file="$(echo "$raw" | sed -r "s/^(.*\.[0-9a-zA-Z]{1,4}).*/\1/")"
+            -printf "%A@ %f$IFS" | sort -rk1n | cut -d' ' -f2-)
+        file="$(echo "$raw" | sed -r "s/^(.*\.[0-9a-zA-Z]{1,7}).*/\1/")"
         if [[ -z "$file" ]]; then
             file="$raw"
         else
             mv -f "$dir/$raw" "$dir/$file" 2>/dev/null
         fi
-        for f in $file ; do
-            FILE_LIST+=("${dir}/${f}")
-        done
         IFS=$'\r'
+        for f in $file ; do
+            if [[ -n "$1" ]] && [[ -d "$VID_DIR" ]]; then
+                mv -f "${dir}/${f}" "${dir}/$1.${f##*.}"
+                cp -n "${dir}/$1.${f##*.}" "$VID_DIR"
+                ARG_PREP="${ARG_PREP}${dir}/$1.${f##*.}$IFS"; shift
+            elif [[ -n "$1" ]]; then
+                ARG_PREP="${ARG_PREP}-a$IFS${1}$IFS${dir}/${f}$IFS"; shift
+            else
+                ARG_PREP="${ARG_PREP}${dir}/${f}$IFS"
+            fi
+        done
     done
-    if [[ ${#FILE_LIST} -eq 0 ]]; then
-        cleanup "2" "Any of your links weren't valid. Closing the party.\n"
+    if [[ -z ${ARG_PREP} ]]; then
+        cleanup "2" "Any of your links were valid. Closing the party.\n"
     fi
-    #shellcheck disable=SC2086
-    set -- "${ASS[@]}"
-    for f in "${FILE_LIST[@]}" ; do
-        if [[ -n "$1" ]]; then
-            ARG_PREP="${ARG_PREP}-a$IFS${1}$IFS${f}$IFS" ; shift
-        else
-            ARG_PREP="${ARG_PREP}${f}$IFS"
-        fi
-
-    done
     if [[ -n "$NICK" ]]; then
         ARG_PREP="${ARG_PREP}-n$IFS$NICK$IFS"
     fi
@@ -296,11 +295,6 @@ postStuff() {
     fi
     printf "%s" "$ARG_PREP" | xargs -d "$IFS" volaupload.sh \
           || cleanup "3" "Error on the volaupload.sh side.\n"
-    if [[ -d "$VID_DIR" ]] ; then
-        for f in "${FILE_LIST[@]}" ; do
-            mv -f "$f" "$VID_DIR"
-        done
-    fi
     cleanup "0"
 }
 

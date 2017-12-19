@@ -2,7 +2,7 @@ volascripts.sh
 ==============
 
 Those are bash scripts which are meant to interact with [Volafile](https://volafile.org) without
-a need of using the browser. I have only two right now but I'm open for suggestions.
+a need of using the browser.
 
 Disclaimer
 ----------
@@ -10,7 +10,7 @@ Disclaimer
 `volaupload.sh` was originally made by [lain](https://github.com/laino) and Xiao. It seemed
 to be abandoned so I enhanced it with agrument parsing and some other features.
 
-volaupload.sh ver. 1.6
+volaupload.sh ver. 1.7
 ----------------------
 
 This script allows you to upload files to [Volafile](https://volafile.org)
@@ -19,17 +19,17 @@ files with different names without a need to rename them beforehand.
 Use -h or --help command for full list of capabilities. Check insides of this script
 for information on how to preset your room, nick and password.
 
-stuff2vola.sh ver. 1.6
+stuff2vola.sh ver. 1.7
 ----------------------
 
-Are you a fan of redundancy and don't want to post links to stuff in a chat like a pleb?
+Are you a fan of redundancy and don't want to post links to stuff in chat like a pleb?
 Than this is a script for you. It will download most content from the web and upload it to
 designeted Volafile room. Script can take multiple arguments just like volaupload.sh.
 Script doesn't save downloaded files by default. If you want to keep downloaded files, please
 specify download directory with the -d option.
 Invoke script with -h or --help command to list other options.
 
-volacrypt.sh ver. 1.1
+volacrypt.sh ver. 1.2
 ---------------------
 
 With this script you are able to upload and retrive files encrypted with symmetric AES256
@@ -105,9 +105,9 @@ VID_DIR="/home/dude/weed"
 Example usage
 -------------
 
-    volaupload.sh -r BEEPi -n Monkey -u ~/Pictures/wild_nigra.jpg -a "merc - approximation"
+    volaupload.sh -r BEEPi -n Monkey ~/Pictures/wild_nigra.jpg -a "merc - approximation"
 
-    stuff2vola.sh -r HF33Go -a "oy vey" -l https://jewtube.com/watch?v=SH4L0M
+    stuff2vola.sh -r HF33Go -a "oy vey" https://jewtube.com/watch?v=SH4L0M
 
 Contributing
 ------------

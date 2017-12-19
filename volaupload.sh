@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=1.6
+__VOLAUPLOADSH_VERSION__=1.7
 
 if ! OPTS=$(getopt --options hr:cn:p:u:a:t:wm \
     --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,retries:,watch,most-new \
@@ -29,6 +29,7 @@ fi
 SERVER="https://volafile.org"
 COOKIE="$TMP/cuckie_$(head -c4 <(tr -dc '[:alnum:]' < /dev/urandom))"
 RETRIES="3"
+
 #Return non zero value when script gets interrupted with Ctrl+C or some error occurs
 # and remove the cookie
 handle_exit() {
@@ -114,8 +115,8 @@ volaupload.sh help page
    Specify name, under which your file(s) will be uploaded.
 
 -p, --pass <password>
-   Spepasswordnt password. If you upload as logged user, file
-   uploads will count towards your file stats on Volafile.
+   Set your account password. If you upload as logged user, file
+   uploads will count towards your file statistics on Volafile.
    See https://volafile.org/user/<your_username>
 
 -u, --room-pass <password>
@@ -125,7 +126,7 @@ volaupload.sh help page
    Upload file with custom name. (It won't overwrite the filename in your
    fielsystem). You can upload multiple renamed files.
    Example:
-       volaupload.sh -r BEPPi file1.jpg file2.png -a funny.jpg -a nasty.png
+       volaupload.sh -r BEEPi file1.jpg file2.png -a funny.jpg -a nasty.png
    First occurence of -a parameter always renames first given file and so on.
 
 -t, --retries <number>
@@ -157,14 +158,19 @@ extract() {
 makeApiCall() {
     local method="$1"
     local query="$2"
-    local name="$3"
-    local password="$4"
+    local room="$3"
+    local name="$4"
+    local password="$5"
+    if [[ -n "$room" ]]; then
+        local ref="Referer: ${SERVER}/r/${room}"
+    else
+        local ref="Referer: ${SERVER}"
+    fi
 
     if [[ -n "$name" ]] && [[ -n "$password" ]]; then
         #session "memoization"
         if [[ ! -f "$COOKIE" ]]; then
-            curl -1L -H "Origin: ${SERVER}" \
-            -H "Referer: ${SERVER}" -H "Accept: text/values" \
+            curl -1L -H "Origin: ${SERVER}" -H "$ref" -H "Accept: text/values" \
             "${SERVER}/rest/login?name=${name}&password=${password}" 2>/dev/null | \
             cut -d$'\n' -f1 > "$COOKIE"
         fi
@@ -172,11 +178,11 @@ makeApiCall() {
         if [[ "$cookie" == "error.code=403" ]]; then
             return 101
         fi
-        curl -1L -b "$cookie" -H "Origin: ${SERVER}" -H "Referer: ${SERVER}" \
+        curl -1L -b "$cookie" -H "Origin: ${SERVER}" -H "$ref" \
             -H "Accept: text/values" "${SERVER}/rest/${method}?${query}" 2>/dev/null
     else
-        curl -1L -H "Origin: ${SERVER}" -H "Referer: ${SERVER}" -H "Accept: text/values" \
-            "${SERVER}/rest/${method}?${query}" 2>/dev/null
+        curl -1L -H "Origin: ${SERVER}" -H "$ref" \
+            -H "Accept: text/values" "${SERVER}/rest/${method}?${query}" 2>/dev/null
     fi
 }
 
@@ -196,19 +202,18 @@ doUpload() {
         roompass="&password=$roompass"
     fi
     if [[ -n "$name" ]] && [[ -n "$pass" ]]; then
-        response=$(makeApiCall getUploadKey "name=$name&room=$room$roompass" "$name" "$pass")
+        response=$(makeApiCall getUploadKey "name=$name&room=$room$roompass" "$room" "$name" "$pass")
     elif [[ -n "$name" ]]; then
-        response=$(makeApiCall getUploadKey "name=$name&room=$room$roompass")
+        response=$(makeApiCall getUploadKey "name=$name&room=$room$roompass" "$room")
     else
         #If user didn't specify name, default it to Volaphile.
         name="Volaphile"
-        response=$(makeApiCall getUploadKey "name=$name&room=$room$roompass")
+        response=$(makeApiCall getUploadKey "name=$name&room=$room$roompass" "$room")
     fi
     error="$?"
     case "$error" in
         0  ) ;;
-        6  ) echo "106"
-             echo "Check your interwebz connection, my friendo!"
+        6  ) echo "106"; echo "Check your interwebz connection, my friendo!"
              echo "Either that, or volafile is dead.#"; return ;;
         101) echo "101"; echo "Login Error: You used wrong login and/or password my dude."
              echo "You wanna login properly, so those sweet volastats can stack up!#";  return;;
@@ -216,12 +221,10 @@ doUpload() {
     esac
     error=$(extract "$response" "error.code")
     if [[ "$error" == "429" ]]; then
-        echo "103"
-        echo "$(extract "$response" "error.info.timeout")#"
+        echo "103"; echo "$(extract "$response" "error.info.timeout")#"
         return
     elif [[ -n "$error" ]]; then
-        echo "104"
-        echo -e "Error number $error. $(extract "$response" "error.message")#"
+        echo "104"; echo -e "Error number $error. $(extract "$response" "error.message")#"
         return
     fi
 
@@ -269,7 +272,7 @@ tryUpload() {
         if [[ ${handle[0]} == "0" ]] || [[ ${handle[0]} == "102" ]] ; then
             return
         elif [[ ${handle[0]} == "101" ]] || [[ ${handle[0]} == "104" ]] \
-            || [[ ${handle[0]} == "105" ]]|| [[ ${handle[0]} == "106" ]]; then
+            || [[ ${handle[0]} == "105" ]] || [[ ${handle[0]} == "106" ]]; then
             handle_exit "${handle[@]}"
         elif [[ ${handle[0]} == "103" ]]; then
             local penalty
@@ -277,9 +280,8 @@ tryUpload() {
             printf "\033[33m"
             while [[ $penalty -gt 0 ]]; do
                 printf "\033[0GToo many key requests, hotshot. Gotta wait %s seconds now...\033[0K" \
-                    "$((penalty - 1))" >&2
+                    "$((--penalty))" >&2
                 sleep 1
-                ((penalty--))
             done
             printf "\033[0G\033[2K\033[0m"
         else

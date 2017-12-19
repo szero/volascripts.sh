@@ -2,7 +2,7 @@
 
 #shamelessly adapted from https://github.com/AdrianKoshka/1339secure
 # shellcheck disable=SC2034
-__VOLACRYPTSH_VERSION__=1.1
+__VOLACRYPTSH_VERSION__=1.2
 
 if ! OPTS=$(getopt --alternative --options hr:n:p:u: \
     --longoptions help,room:,nick:,pass:,pp:,room-pass:,passphrase:,sp,skip-passphrase \
@@ -107,7 +107,7 @@ function encrypt_upload() {
     if [[ ! -f "$input_URI" ]]; then
         cleanup "2" "none" "You need to specify a file in order for this to work!"
     fi
-    printf "%s" "$pass" | gpg -q --output "$out_file" --batch --passphrase-fd 0 \
+    printf "%s" "$pass" | gpg --output "$out_file" --batch --passphrase-fd 0 \
         --symmetric --cipher-algo AES256 "$input_URI" || \
         cleanup "3" "$out_file" "Error on the gpg side."
     if [[ -n "$NICK" ]]; then
