@@ -2,7 +2,7 @@
 # shellcheck disable=SC2155
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=1.7
+__STUFF2VOLASH_VERSION__=1.8
 
 if ! OPTS=$(getopt --options hr:n:p:u:a:d:ob \
     --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,dir:,audio-only,best-quality \
@@ -122,21 +122,25 @@ fi
 skip() {
     printf "\033[31m" >&2
     case $1 in
-        0 | 102 ) printf "\033[0m" >&2; return 0 ;;
+        0 | 102)
+            if [[ $1 -eq 102 ]]; then
+                printf "\033[33mFile was too small to make me bothered with printing the progress bar.\033[0m\n\n" >&2
+            fi ; return 0 ;;
         22) echo -e "\n$2: No such file on the interwebs.\033[0m\n" >&2; return 1 ;;
-        6 ) echo -e "\n$2: This link is busted or its not a link at all. Try with a valid one.\033[0m\n" >&2; return 1;;
+        6 ) echo -e "\n$2: This link is busted or its not a link at all."
+            echo -e "Try with a valid one.\033[0m\n" >&2; return 1 ;;
         * ) echo -e "\ncURL error of code $1 happend.\033[0m\n" >&2; return 1 ;;
     esac
 }
 
 getContentType(){
-    local FIFO="$1/content-type"
     local status="$1/status-file"
+    local FIFO="$1/content-type"
     local curl_pid
     mkfifo "$FIFO"
 
     ( set +e
-    curl -fsLI "$2" >> "$FIFO"
+    curl -fsLIX GET -H "Cookie: allow-download=1" "$2" >> "$FIFO"
     echo "$?" >> "$status"
     echo >> "$FIFO"
     sync
@@ -170,6 +174,9 @@ getContentType(){
     }
     return "$(cat "$status")"
 }
+
+#thanks stackoverflow! https://stackoverflow.com/a/37840948
+urldecode() { : "${*//+/ }"; echo -e "${_//%/\\x}"; }
 
 youtube-dlBar() {
 # shellcheck disable=SC2068
@@ -212,7 +219,7 @@ while  read -r -a line; do
     elif [[ ${line[0]} == "WARNING:" ]]; then
         continue
     elif [[ ${line[0]} == "ERROR:" ]]; then
-        echo -e "\033[31m${line[*]:1}. Skipping.\033[33m\n" >&2
+        echo -e "\033[31m${line[*]:1}. Skipping.\033[33m" >&2
     else
         echo -e "${line[*]:1}" >&2
     fi
@@ -236,7 +243,7 @@ postStuff() {
     local error
     local file
     local raw
-    local f
+    local filepath
 
     set -- "${ASS[@]}"
     for l in "${LINKS[@]}" ; do
@@ -246,12 +253,25 @@ postStuff() {
         ftype="$(getContentType "$dir" "$l")"
         error="$?"
         skip "$error" "$l" || continue
+        filepath="$(urldecode "$dir/$(basename "$l")")"
         echo -e "\033[32m<\\/> Downloading \033[1m$l\033[22m \033[33m"
         if [[ "$ftype" == "text/html" ]]; then
             youtube-dlBar "-o" "$dir/%(title)s.%(ext)s" "$args" "$l"
         else
-            echo "Destination: $dir/$(basename "$l")"
-            $cURL -L "$l" > "$dir/$(basename "$l")"
+            if [[ "$l" =~ ^.*volafile\.[net|org|io] ]]; then
+                echo -e "Destination: $filepath"
+                if [[ -n "$NICK" ]] && [[ -n "$PASSWORD" ]]; then
+                    local cookie
+                    cookie="$(volaupload.sh -c login "name=$NICK&password=$PASSWORD" | cut -d$'\n' -f1)" \
+                        || cleanup "3" "Error on the volaupload.sh side.\n"
+                    $cURL -1fLH "Cookie: allow-download=1" -H "Cookie: $cookie" "$l" > "$filepath"
+                else
+                    $cURL -1fLH "Cookie: allow-download=1" "$l" > "$filepath"
+                fi
+            else
+                echo -e "Destination: $filepath"
+                $cURL -L "$l" > "$filepath"
+            fi
         fi
         error="$?"
         printf "\033[0m\n"

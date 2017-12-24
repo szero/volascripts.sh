@@ -4,7 +4,7 @@ set -uo pipefail
 IFS=$'\n\t'
 
 VOLAUPLOAD_SH_VER=(1 7)
-STUFF2VOLA_SH_VER=(1 7)
+STUFF2VOLA_SH_VER=(1 8)
 VOLACRYPT_SH_VER=(1 2)
 CURLBAR_VER=(1 1)
 
@@ -50,6 +50,7 @@ _check_version() {
     #return 1 if script exists but its without versioning
     return 1
 }
+
 version_check() {
     local version
     local -a ver=( "${@:3:5}" )
@@ -63,19 +64,35 @@ version_check() {
     return 1
 
 }
+
 installing() {
-    if [[ -z "$(which youtube-dl)" ]] ; then
+    if ! type bc > /dev/null 2>&1; then
+        echo -e "\nbc not detected, stopping installation. Check if its avaliable in"
+        echo -e "your package manager, if not please check out readme for more info."; exit 1
+    fi
+    if ! type youtube-dl > /dev/null 2>&1 ; then
         echo -e "\nyoutube-dl wasn't detected, installing ...\n"
         curl --progress-bar -L "https://yt-dl.org/downloads/latest/youtube-dl" -o "$1/youtube-dl"
         chmod a+rx "$1/youtube-dl"
     fi
-    if [[ "${BASH_VERSINFO[0]}" -ge 4 ]] && [[ "${BASH_VERSINFO[1]}" -ge 3 ]]; then
-        if ! version_check "curlbar" "__CURLBAR_VERSION__" "${CURLBAR_VER[@]}" ; then
-            install_curlbar "$1"
-        fi
-    else
-        echo -e "\nYour bash version is incompatible with curlbar. Please install bash 4.3 or higher in order to use it.\n"
-    fi
+    echo -e "\nDo you want to install/update curlbar?"
+    echo -e "With curlbar you will have more verbose upload bar in volaupload.sh script."
+    while true; do
+        local yn; printf "\033[32m[Y]es\033[0m/\033[31m[N]o\033[0m) "; read -er yn
+        case "$yn" in
+            [Yy]*)
+            if [[ "${BASH_VERSINFO[0]}" -ge 4 ]] && [[ "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+                if ! version_check "curlbar" "__CURLBAR_VERSION__" "${CURLBAR_VER[@]}" ; then
+                    install_curlbar "$1"
+                fi
+            else
+                echo -e "\nYour bash version is incompatible with curlbar. Please install bash"
+                echo -e "4.3 or higher in order to use it.\n"
+            fi; break ;;
+            [Nn]*) break ;;
+            * )  continue ;;
+        esac
+    done
     if ! version_check "volaupload.sh" "__VOLAUPLOADSH_VERSION__" "${VOLAUPLOAD_SH_VER[@]}" ; then
         install_stuff "$1" "volaupload.sh"
     fi

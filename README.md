@@ -19,7 +19,7 @@ files with different names without a need to rename them beforehand.
 Use -h or --help command for full list of capabilities. Check insides of this script
 for information on how to preset your room, nick and password.
 
-stuff2vola.sh ver. 1.7
+stuff2vola.sh ver. 1.8
 ----------------------
 
 Are you a fan of redundancy and don't want to post links to stuff in chat like a pleb?
@@ -37,22 +37,22 @@ algorithm. If you will supply the script with a file, it will encrypt it and upl
 a specified room. If you will specify valid volafile link, script will download and
 decrypt it.
 
-Prerequsites
+Prerequisites
 ------------
 
 - bash >= 4.0 (4.3 version is needed if you want to have better upload bar in volaupload.sh)
 - coreutils
 - [curl](https://curl.haxx.se/download.html) >= 7.33.0
 - [youtube-dl](https://github.com/rg3/youtube-dl)
+- [bc](https://www.gnu.org/software/bc/) required for floating point arithmetics
 - [ffmpeg](http://ffmpeg.org/download.html)
-- [curlbar](https://gist.github.com/Szero/cd496ca43df4b871df75818ebcc40233)
-    * (required for riced upload bar)
-    * (requires [bc](https://www.gnu.org/software/bc/) in order to operate)
 - [gpg](https://www.gnupg.org/download)
     * (required for volacrypt.sh)
 
 ### Optional:
 
+- [curlbar](https://gist.github.com/Szero/cd496ca43df4b871df75818ebcc40233)
+    * (required for riced upload bar, install script will ask you if you want to install it)
 - [inotify-tools](https://github.com/rvoicilas/inotify-tools/wiki)
     * This one is needed just for --watch command in volaupload.sh script.
       Check the script source and decide if you find this usefull.
