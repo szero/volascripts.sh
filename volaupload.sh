@@ -161,6 +161,7 @@ makeApiCall() {
     local room="$3"
     local name="$4"
     local password="$5"
+    local cookie
     if [[ -n "$room" ]]; then
         local ref="Referer: ${SERVER}/r/${room}"
     else
@@ -336,7 +337,7 @@ fi
 if [[ -z "$NICK" ]] && [[ -n "$PASSWORD" ]]; then
     handle_exit "4" "Specifying password, but not a username? What are you? A silly-willy?\n"
 elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
-    if [[ -z "$(which inotifywait)" ]]; then
+    if ! type inotifywait > /dev/null 2>&1; then
         handle_exit "6" "Please install inotify-tools package in order to use this feature.\n"
     fi
     TARGET=$(echo "${TARGETS[0]}" | tr -d "\r")
