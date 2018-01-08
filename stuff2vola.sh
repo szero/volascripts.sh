@@ -2,7 +2,7 @@
 # shellcheck disable=SC2155
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=1.8
+__STUFF2VOLASH_VERSION__=1.9
 
 if ! OPTS=$(getopt --options hr:n:p:u:a:d:ob \
     --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,dir:,audio-only,best-quality \
@@ -276,27 +276,28 @@ postStuff() {
         error="$?"
         printf "\033[0m\n"
         skip "$error" "$l" || continue
-        IFS=$'\n'
         raw=$(find "$dir" -maxdepth 1 -regextype posix-egrep -regex ".+\.[a-zA-Z0-9\%\?=&_-]+$" \
-            -printf "%A@ %f$IFS" | sort -rk1n | cut -d' ' -f2-)
+            -printf "%A@ %f\n" | sort -rk1n | cut -d' ' -f2-)
         file="$(echo "$raw" | sed -r "s/^(.*\.[0-9a-zA-Z]{1,7}).*/\1/")"
         if [[ -z "$file" ]]; then
             file="$raw"
         else
             mv -f "$dir/$raw" "$dir/$file" 2>/dev/null
         fi
-        IFS=$'\r'
+        IFS=$'\n'
+        local CR=$'\r'
         for f in $file ; do
             if [[ -n "$1" ]] && [[ -d "$VID_DIR" ]]; then
                 mv -f "${dir}/${f}" "${dir}/$1.${f##*.}"
                 cp -n "${dir}/$1.${f##*.}" "$VID_DIR"
-                ARG_PREP="${ARG_PREP}${dir}/$1.${f##*.}$IFS"; shift
+                ARG_PREP="${ARG_PREP}${dir}/$1.${f##*.}$CR"; shift
             elif [[ -n "$1" ]]; then
-                ARG_PREP="${ARG_PREP}-a$IFS${1}$IFS${dir}/${f}$IFS"; shift
+                ARG_PREP="${ARG_PREP}-a$CR${1}$CR${dir}/${f}$CR"; shift
             else
-                ARG_PREP="${ARG_PREP}${dir}/${f}$IFS"
+                ARG_PREP="${ARG_PREP}${dir}/${f}$CR"
             fi
         done
+        IFS=$'\r'
     done
     if [[ -z ${ARG_PREP} ]]; then
         cleanup "2" "Any of your links were valid. Closing the party.\n"

@@ -19,7 +19,7 @@ files with different names without a need to rename them beforehand.
 Use -h or --help command for full list of capabilities. Check insides of this script
 for information on how to preset your room, nick and password.
 
-stuff2vola.sh ver. 1.8
+stuff2vola.sh ver. 1.9
 ----------------------
 
 Are you a fan of redundancy and don't want to post links to stuff in chat like a pleb?
@@ -72,11 +72,11 @@ installed with install script if you don't have them already.
 
 To install on all UNIX-like systems for current user (into `~/.local/bin` directory) type:
 
-    curl -sLo- https://rawgit.com/Szero/volascripts.sh/master/install.sh | bash
+    bash <(curl -sLo- https://rawgit.com/Szero/volascripts.sh/master/install.sh)
 
 To install on all UNIX-like systems for all users (into `/usr/local/bin` directory) type:
 
-    curl -sLo- https://rawgit.com/Szero/volascripts.sh/master/install.sh | sudo bash
+    sudo bash -c 'bash <(curl -sLo- https://rawgit.com/Szero/volascripts.sh/master/install.sh)'
 
 Restart your terminal to finalize installation process.
 Install script is responsible both for updating and installing so you are good with running it
