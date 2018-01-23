@@ -44,8 +44,8 @@ _check_version() {
     fi
 
     if version=$(grep -oE "^$2.*" "$path_to_script"); then
-            echo -n "$version" | cut -d'=' -f2
-            return 0
+        echo -n "$version" | cut -d'=' -f2
+        return 0
     fi
     #return 1 if script exists but its without versioning
     return 1

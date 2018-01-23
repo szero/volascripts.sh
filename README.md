@@ -16,8 +16,8 @@ volaupload.sh ver. 1.7
 This script allows you to upload files to [Volafile](https://volafile.org)
 without using the browser. This is convenient, since it allows you to upload
 files with different names without a need to rename them beforehand.
-Use -h or --help command for full list of capabilities. Check insides of this script
-for information on how to preset your room, nick and password.
+Use -h or --help command for full list of capabilities. Check [Configuration](#configuration)
+section below to learn how to preset your room, nick and password.
 
 stuff2vola.sh ver. 1.9
 ----------------------
