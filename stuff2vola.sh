@@ -2,7 +2,7 @@
 # shellcheck disable=SC2155
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=1.9
+__STUFF2VOLASH_VERSION__=1.10
 
 if ! OPTS=$(getopt --options hr:n:p:u:a:d:ob \
     --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,dir:,audio-only,best-quality \
@@ -36,7 +36,7 @@ cleanup() {
     fi
     for failure in "${@:2}"; do
         echo -e "\033[31m$failure\033[0m" >&2
-    done;  exit "$exit_code"
+    done; exit "$exit_code"
 }
 
 eval set -- "$OPTS"
@@ -214,7 +214,7 @@ while  read -r -a line; do
         fi
     elif [[ ${line[1]} == "Requested" ]]; then
         echo -e "Video and audio streams will be downloaded separately and merged together." >&2
-    elif  [[ ${line[1]} == "Downloading" ]]; then
+    elif  [[ ${line[1]} == "Downloading from" ]]; then
         echo -e "\n${line[*]:1}\n" >&2
     elif [[ ${line[0]} == "WARNING:" ]]; then
         continue
@@ -254,7 +254,7 @@ postStuff() {
         error="$?"
         skip "$error" "$l" || continue
         filepath="$(urldecode "$dir/$(basename "$l")")"
-        echo -e "\033[32m<\\/> Downloading \033[1m$l\033[22m \033[33m"
+        echo -e "\033[32m<\033[38;5;88m\\/\033[32m> Downloading \033[1m$l\033[22m \033[33m"
         if [[ "$ftype" == "text/html" ]]; then
             youtube-dlBar "-o" "$dir/%(title)s.%(ext)s" "$args" "$l"
         else
@@ -291,6 +291,9 @@ postStuff() {
                 mv -f "${dir}/${f}" "${dir}/$1.${f##*.}"
                 cp -n "${dir}/$1.${f##*.}" "$VID_DIR"
                 ARG_PREP="${ARG_PREP}${dir}/$1.${f##*.}$CR"; shift
+            elif [[ -d "$VID_DIR" ]]; then
+                cp -n "${dir}/${f}" "$VID_DIR"
+                ARG_PREP="${ARG_PREP}${dir}/${f}$CR"
             elif [[ -n "$1" ]]; then
                 ARG_PREP="${ARG_PREP}-a$CR${1}$CR${dir}/${f}$CR"; shift
             else
@@ -300,8 +303,11 @@ postStuff() {
         IFS=$'\r'
     done
     if [[ -z ${ARG_PREP} ]]; then
-        cleanup "2" "Any of your links were valid. Closing the party.\n"
+        cleanup "2" "None of your links were valid. Closing the party.\n"
     fi
+    local current; current="$(date "+%s")"
+    echo -en "\033[0mDownloading completed in "
+    TZ='' date -d "@$((current-download_start))" "+%H hours, %M minutes and %S seconds.%n"
     if [[ -n "$NICK" ]]; then
         ARG_PREP="${ARG_PREP}-n$IFS$NICK$IFS"
     fi
@@ -326,5 +332,6 @@ if [[ -n $HELP ]]; then
 elif [[ "${#LINKS[@]}" -eq 0 ]]; then
     cleanup "1" "My dude, comon. You tried to download nothing.\n"
 else
+    download_start="$(date "+%s")"
     postStuff
 fi

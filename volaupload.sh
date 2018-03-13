@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=1.7
+__VOLAUPLOADSH_VERSION__=1.8
 
 if ! OPTS=$(getopt --options hr:cn:p:u:a:t:wm \
     --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,retries:,watch,most-new \
@@ -42,7 +42,12 @@ handle_exit() {
     fi
     for failure in "${@:2}"; do
         echo -e "\033[31m$failure\033[0m" >&2
-    done; rm -f "$COOKIE" "$stuff" ;  exit "$exit_code"
+    done; rm -f "$COOKIE" "$stuff"
+    if [[ $exit_code -eq 0 ]]; then
+        local current; current="$(date "+%s")"
+        echo -en "Uploading completed in "
+        TZ='' date -d "@$((current-upload_start))" "+%H hours, %M minutes and %S seconds."
+    fi; exit "$exit_code"
 }
 
 eval set -- "$OPTS"
@@ -233,17 +238,19 @@ doUpload() {
     local key; key=$(extract "$response" key)
     local file_id; file_id=$(extract "$response" file_id)
 
+    local up_str
+    up_str="\033[32m<\033[38;5;22m/\\\\\033[32m> Uploading \033[1m$(basename "$file")\033[22m"
+    up_str+=" to \033[1m$ROOM\033[22m as \033[1m$name\033[22m\033[33m"
     # -f option makes curl return error 22 on server responses with code 400 and higher
     if [[ -z "$renamed" ]]; then
-        echo -e "\033[32m</\\> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m" >&2
-        printf "\033[33m" >&2 #curlbar prints stuff to stderr so we change color in that descriptor
+        #curlbar prints stuff to stderr so we change color in that descriptor
+        echo -e "$up_str" >&2
         $cURL -1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
             "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
     else
-        echo -e "\033[32m</\\> Uploading \033[1m$(basename "$file")\033[22m to \033[1m$ROOM\033[22m as \033[1m$name\033[22m" >&2
-        echo -e "-> File renamed to: \033[1m${renamed}\033[22m" >&2
-        printf "\033[33m" >&2
+        echo -e "$up_str" >&2
+        echo -e "-> File renamed to: \033[1m${renamed}\033[22m\033[33m" >&2
         $cURL -1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
             "${server}/upload?room=${room}&key=${key}" 1>/dev/null
         error="$?"
@@ -281,8 +288,7 @@ tryUpload() {
             printf "\033[33m"
             while [[ $penalty -gt 0 ]]; do
                 printf "\033[0GToo many key requests, hotshot. Gotta wait %s seconds now...\033[0K" \
-                    "$((--penalty))" >&2
-                sleep 1
+                    "$((--penalty))" >&2; sleep 1
             done
             printf "\033[0G\033[2K\033[0m"
         else
@@ -323,8 +329,7 @@ fi
 if [[ ${#ROOM_ALIASES[@]} -gt 0 ]]; then
     for a in "${ROOM_ALIASES[@]}"; do
         if [[ "$ROOM" == "$(echo "$a" | cut -d'=' -f1)" ]]; then
-            ROOM="$(echo "$a" | cut -d'=' -f2)"
-            break
+            ROOM="$(echo "$a" | cut -d'=' -f2)"; break
         fi
     done
 fi
@@ -334,6 +339,7 @@ if [[ -n "$ROOM" ]] ; then
         handle_exit "5" "Room you specified doesn't exist, or Vola is busted for good this time!\n"
     fi
 fi
+upload_start="$(date "+%s")"
 if [[ -z "$NICK" ]] && [[ -n "$PASSWORD" ]]; then
     handle_exit "4" "Specifying password, but not a username? What are you? A silly-willy?\n"
 elif [[ -n "$WATCHING" ]] && [[ -n "$ROOM" ]] && [[ $argc == 1 ]]; then
@@ -383,6 +389,9 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
             cat "$t" > "$stuff"
             while read -r line; do
                 rename=$(echo "$line" | tr -s " ")
+                if [[ -n "$1" ]]; then
+                    rename="$1"; break
+                fi
                 if [[ -n "$rename" ]]; then
                     break
                 fi

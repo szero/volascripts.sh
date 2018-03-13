@@ -3,8 +3,8 @@
 set -uo pipefail
 IFS=$'\n\t'
 
-VOLAUPLOAD_SH_VER=(1 7)
-STUFF2VOLA_SH_VER=(1 9)
+VOLAUPLOAD_SH_VER=(1 8)
+STUFF2VOLA_SH_VER=(1 10)
 VOLACRYPT_SH_VER=(1 2)
 CURLBAR_VER=(1 1)
 
@@ -36,13 +36,12 @@ install_curlbar() {
 
 _check_version() {
     local path_to_script
-    local version
     # how to make stuff like that portable??
     # is hack with type good enough?
     if ! path_to_script="$(type "$1" 2>/dev/null | cut -d' ' -f3)"; then
         return 1
     fi
-
+    local version
     if version=$(grep -oE "^$2.*" "$path_to_script"); then
         echo -n "$version" | cut -d'=' -f2
         return 0

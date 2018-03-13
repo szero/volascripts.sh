@@ -10,7 +10,7 @@ Disclaimer
 `volaupload.sh` was originally made by [lain](https://github.com/laino) and Xiao. It seemed
 to be abandoned so I enhanced it with agrument parsing and some other features.
 
-volaupload.sh ver. 1.7
+volaupload.sh ver. 1.8
 ----------------------
 
 This script allows you to upload files to [Volafile](https://volafile.org)
@@ -19,8 +19,8 @@ files with different names without a need to rename them beforehand.
 Use -h or --help command for full list of capabilities. Check [Configuration](#configuration)
 section below to learn how to preset your room, nick and password.
 
-stuff2vola.sh ver. 1.9
-----------------------
+stuff2vola.sh ver. 1.10
+-----------------------
 
 Are you a fan of redundancy and don't want to post links to stuff in chat like a pleb?
 Than this is a script for you. It will download most content from the web and upload it to
@@ -40,14 +40,15 @@ decrypt it.
 Prerequisites
 ------------
 
-- bash >= 4.0
+- [bash](https://www.gnu.org/software/bash/) >= 4.0
     * 4.3 version is needed if you want to have better upload bar in volaupload.sh
-- coreutils
+- [coreutils](https://www.gnu.org/software/coreutils)
 - [curl](https://curl.haxx.se/download.html) >= 7.33.0
-- [youtube-dl](https://github.com/rg3/youtube-dl)
-- [bc](https://www.gnu.org/software/bc/)
+- [bc](https://www.gnu.org/software/bc)
     * required for floating point arithmetics
+- [youtube-dl](https://github.com/rg3/youtube-dl)
 - [ffmpeg](http://ffmpeg.org/download.html)
+    * two above required for stuff2vola.sh
 - [gpg](https://www.gnupg.org/download)
     * required for volacrypt.sh
 
