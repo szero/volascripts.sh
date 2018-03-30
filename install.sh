@@ -3,8 +3,8 @@
 set -uo pipefail
 IFS=$'\n\t'
 
-VOLAUPLOAD_SH_VER=(1 8)
-STUFF2VOLA_SH_VER=(1 10)
+VOLAUPLOAD_SH_VER=(2 0)
+STUFF2VOLA_SH_VER=(1 11)
 VOLACRYPT_SH_VER=(1 2)
 CURLBAR_VER=(1 1)
 
@@ -61,7 +61,6 @@ version_check() {
         fi
     fi
     return 1
-
 }
 
 installing() {

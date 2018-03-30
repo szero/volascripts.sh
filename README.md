@@ -10,7 +10,7 @@ Disclaimer
 `volaupload.sh` was originally made by [lain](https://github.com/laino) and Xiao. It seemed
 to be abandoned so I enhanced it with agrument parsing and some other features.
 
-volaupload.sh ver. 1.8
+volaupload.sh ver. 2.0
 ----------------------
 
 This script allows you to upload files to [Volafile](https://volafile.org)
@@ -19,7 +19,7 @@ files with different names without a need to rename them beforehand.
 Use -h or --help command for full list of capabilities. Check [Configuration](#configuration)
 section below to learn how to preset your room, nick and password.
 
-stuff2vola.sh ver. 1.10
+stuff2vola.sh ver. 1.11
 -----------------------
 
 Are you a fan of redundancy and don't want to post links to stuff in chat like a pleb?
@@ -112,6 +112,10 @@ Example usage
     volaupload.sh -r BEEPi -n Monkey ~/Pictures/wild_nigra.jpg -a "merc - approximation"
 
     stuff2vola.sh -r HF33Go -a "oy vey" https://jewtube.com/watch?v=SH4L0M
+
+    How to upload empty file with custom name (useful for file requests).
+
+        volaupload.sh -r BEEPi -n Liquid <(true) -a "Requesting latest BLACKED release"
 
 Contributing
 ------------

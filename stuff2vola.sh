@@ -2,10 +2,10 @@
 # shellcheck disable=SC2155
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=1.10
+__STUFF2VOLASH_VERSION__=1.11
 
-if ! OPTS=$(getopt --options hr:n:p:u:a:d:ob \
-    --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,dir:,audio-only,best-quality \
+if ! OPTS=$(getopt --options hr:n:p:u:a:f:d:ob \
+    --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,force-server:,dir:,audio-only,best-quality \
     -n 'vid2vola.sh' -- "$@"); then
     echo -e "\nFiled parsing options.\n"; exit 1
 fi
@@ -44,11 +44,12 @@ eval set -- "$OPTS"
 while true; do
     case "$1" in
         -h | --help) HELP="true" ; shift ;;
-        -r | --room ) ROOM="$2"; shift 2;;
+        -r | --room ) ROOM="$2"; shift 2 ;;
         -n | --nick) NICK="$2" ; shift 2 ;;
         -p | --pass) PASSWORD="$2" ; shift 2 ;;
         -u | --room-pass) ROOMPASS="$2"; shift 2 ;;
-        -a | --upload-as) ASS+=("$2"); shift 2;;
+        -a | --upload-as) ASS+=("$2"); shift 2 ;;
+        -f | --force-server) UL_SERVER="$2"; shift 2 ;;
         -d | --dir) VID_DIR="$2"
                 if [[ ! -d "$VID_DIR" ]]; then
                     cleanup "4" "\nYou specified invalid directory.\n"
@@ -96,6 +97,9 @@ stuff2vola.sh help page
 
 -a, --upload-as <renamed_file>
     Upload file with custom name.
+
+-f, --force-server <server_number>
+   Force uploading to a specific server because not all of them are equal.
 
 -d, --dir <destination_directory>
     If you will specify this option, all of your downloaded files will be saved
@@ -191,11 +195,11 @@ local re='[0-9\.%~]{1,4}'
 local SLEEP_PID=-1
 local speed
 local eta
-local IFS=' '
+local IFS=$' '
 while  read -r -a line; do
     if [[ "${line[1]}" == "100%" ]]; then
-        printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G\n\n" \
-        "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "$speed" "$eta"
+        printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G\n" \
+        "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "$speed" "$eta" >&2
     elif [[ ${line[0]} == "[download]" ]] && [[ "${line[1]}" =~ $re ]]; then
         speed="${line[5]}"
         eta="${line[7]}"
@@ -214,14 +218,14 @@ while  read -r -a line; do
         fi
     elif [[ ${line[1]} == "Requested" ]]; then
         echo -e "Video and audio streams will be downloaded separately and merged together." >&2
-    elif  [[ ${line[1]} == "Downloading from" ]]; then
-        echo -e "\n${line[*]:1}\n" >&2
+    elif  [[ ${line[1]} == "Downloading" ]]; then
+        echo >&2; echo -ne "${line[*]:1}" >&2 | tr -d "\n\r" >&2; echo >&2
     elif [[ ${line[0]} == "WARNING:" ]]; then
         continue
     elif [[ ${line[0]} == "ERROR:" ]]; then
-        echo -e "\033[31m${line[*]:1}. Skipping.\033[33m" >&2
+        echo -ne "\033[31m${line[*]:1}. Skipping.\033[33m" >&2
     else
-        echo -e "${line[*]:1}" >&2
+        echo -ne "${line[*]:1}" >&2 | tr -d "\n\r" >&2; echo >&2
     fi
 done
 return 0
@@ -254,7 +258,7 @@ postStuff() {
         error="$?"
         skip "$error" "$l" || continue
         filepath="$(urldecode "$dir/$(basename "$l")")"
-        echo -e "\033[32m<\033[38;5;88m\\/\033[32m> Downloading \033[1m$l\033[22m \033[33m"
+        echo -e "\033[32m<\033[38;5;88m\\/\033[32m> Downloading from \033[1m$l\033[22m \033[33m"
         if [[ "$ftype" == "text/html" ]]; then
             youtube-dlBar "-o" "$dir/%(title)s.%(ext)s" "$args" "$l"
         else
@@ -319,6 +323,9 @@ postStuff() {
     fi
     if [[ -n "$ROOM" ]]; then
         ARG_PREP="${ARG_PREP}-r$IFS$ROOM$IFS"
+    fi
+    if [[ -n "$UL_SERVER" ]]; then
+        ARG_PREP="${ARG_PREP}-f$IFS$UL_SERVER$IFS"
     fi
     printf "%s" "$ARG_PREP" | xargs -d "$IFS" volaupload.sh \
           || cleanup "3" "Error on the volaupload.sh side.\n"

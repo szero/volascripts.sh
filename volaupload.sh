@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=1.8
+__VOLAUPLOADSH_VERSION__=2.0
 
-if ! OPTS=$(getopt --options hr:cn:p:u:a:t:wm \
-    --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,retries:,watch,most-new \
+if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wm \
+    --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new \
     -n 'volaupload.sh' -- "$@") ; then
     echo -e "\nFiled parsing options.\n" ; exit 1
 fi
@@ -29,11 +29,12 @@ fi
 SERVER="https://volafile.org"
 COOKIE="$TMP/cuckie_$(head -c4 <(tr -dc '[:alnum:]' < /dev/urandom))"
 RETRIES="3"
+UL_SERVERS=(1 5 6 7)
 
 #Return non zero value when script gets interrupted with Ctrl+C or some error occurs
 # and remove the cookie
 handle_exit() {
-    trap - SIGHUP SIGINT SIGTERM
+    trap - SIGHUP SIGINT SIGTERM ERR EXIT
     local failure
     local exit_code="$1"
     if [[ "$exit_code" == "" ]]; then
@@ -50,6 +51,12 @@ handle_exit() {
     fi; exit "$exit_code"
 }
 
+contains_element () {
+  local e match="$1"
+  shift
+  for e; do [[ "$e" == "$match" ]] && return 0; done
+  return 1
+}
 eval set -- "$OPTS"
 
 while true; do
@@ -66,6 +73,11 @@ while true; do
         -p | --pass) PASSWORD="$2"; shift 2 ;;
         -u | --room-pass) ROOMPASS="$2"; shift 2 ;;
         -a | --upload-as) RENAMES+=("$2"); shift 2 ;;
+        -f | --force-server) UL_SERVER="$2"
+            if ! contains_element "$UL_SERVER" "${UL_SERVERS[@]}"; then
+                IFS=$','; handle_exit "9" "Server you specified doesn't exist." \
+                "Possible values are: ${UL_SERVERS[*]//  /|}"
+            fi; shift 2 ;;
         -t | --retries) RETRIES="$2"
             re="^[0-9]$"
             if ! [[ "$RETRIES" =~ $re ]] || [[ "$RETRIES" -lt 0 ]]; then
@@ -99,6 +111,7 @@ else
 fi
 
 print_help() {
+local IFS=$','
 cat >&2 << EOF
 
 volaupload.sh help page
@@ -134,6 +147,10 @@ volaupload.sh help page
        volaupload.sh -r BEEPi file1.jpg file2.png -a funny.jpg -a nasty.png
    First occurence of -a parameter always renames first given file and so on.
 
+-f, --force-server <server_number>
+   Force uploading to a specific server because not all of them are equal.
+   Possible server values: ${UL_SERVERS[*]//  /|}
+
 -t, --retries <number>
    Specify number of retries when upload fails. Defaults to 3.
    You can't retry more than 9 times.
@@ -150,7 +167,7 @@ exit 0
 }
 
 extract() {
-    _key=$2
+    local line b _key="$2"
     echo "$1" | (while read -r line; do
         b="$(echo "$line" | cut -d'=' -f1)"
         if [[ "$b" == "$_key" ]]; then
@@ -158,6 +175,30 @@ extract() {
             return
         fi
         done)
+}
+
+counter() {
+    # 1st variable is number that is replaced with '##' placeholder
+    # 2nd and later variables are text with '##' placeholder
+    # line with placeholder will be printed 1stvar-times on the same line
+    # placeholder can only be used once
+    local -i count=$1; local line; local -i position; local -i i=0; local -a a
+    local IFS=$'\n'
+    while read -r line; do a+=("${line#"${line%%[![:space:]]*}"}"); done < <(echo -e "${@:2}")
+    for line in "${a[@]}"; do
+        if [[ $line =~ '##' ]]; then
+            echo >&2
+            position="$i"
+        else
+            printf "%s\n" "$line" >&2
+            ((i++))
+        fi
+    done
+    i=$(( ${#a[@]} - position - 1 ))
+    echo -ne "\033[${i}A" >&2
+    while [[ $count -ge 0 ]]; do
+        echo -en "\033[0G${a[$position]//\#\#/$count}\033[0K" >&2; ((--count)); sleep 1
+    done; echo -ne "\033[0G\033[$(( ${#a[@]} - i ))A\033[0J\033[0m" >&2
 }
 
 makeApiCall() {
@@ -194,7 +235,7 @@ makeApiCall() {
 
 doUpload() {
 
-    trap handle_exit SIGINT
+    trap 'handle_exit "1"' SIGINT SIGHUP SIGTERM EXIT
 
     local file="$1"
     local room="$2"
@@ -234,13 +275,18 @@ doUpload() {
         return
     fi
 
-    local server; server="https://$(extract "$response" server)"
+    local server; server="$(extract "$response" server)"
+    if [[ -n "$UL_SERVER" ]]; then
+        if [[ ! "$UL_SERVER" == $(echo -ne "$server" | cut -b3) ]]; then
+            echo "107#"; return
+        fi
+    fi
     local key; key=$(extract "$response" key)
     local file_id; file_id=$(extract "$response" file_id)
-
     local up_str
     up_str="\033[32m<\033[38;5;22m/\\\\\033[32m> Uploading \033[1m$(basename "$file")\033[22m"
-    up_str+=" to \033[1m$ROOM\033[22m as \033[1m$name\033[22m\033[33m"
+    up_str+=" to \033[1m$ROOM, $(echo "$server" | cut -f1 -d'.')\033[22m as \033[1m$name\033[22m\033[33m"
+    server="https://$server"
     # -f option makes curl return error 22 on server responses with code 400 and higher
     if [[ -z "$renamed" ]]; then
         #curlbar prints stuff to stderr so we change color in that descriptor
@@ -272,6 +318,7 @@ doUpload() {
 }
 
 tryUpload() {
+    trap 'handle_exit "1"' SIGHUP SIGTERM EXIT
     local -i i=0
     while ((i<RETRIES)); do
         # first argument of 'handle' is error code
@@ -285,16 +332,13 @@ tryUpload() {
         elif [[ ${handle[0]} == "103" ]]; then
             local penalty
             penalty="$(bc <<< "(${handle[1]}/1000)+1")"
-            printf "\033[33m"
-            while [[ $penalty -gt 0 ]]; do
-                printf "\033[0GToo many key requests, hotshot. Gotta wait %s seconds now...\033[0K" \
-                    "$((--penalty))" >&2; sleep 1
-            done
-            printf "\033[0G\033[2K\033[0m"
+            counter "$penalty" "\033[33mToo many key requests, hotshot. Gotta wait ## seconds now...\n"
+        elif [[ ${handle[0]} == "107" ]]; then
+            counter "3" "\033[33mRetrying in ## seconds until we force upload to ${UL_SERVER}dl server.\n"
+            ((--i))
         else
-            echo -e "\033[33mcURL error nr ${handle[0]} happend.\033[0m\n" >&2
-            echo -e "\033[33mRetrying upload after 5 seconds ...\033[0m\n" >&2
-            sleep 5
+            counter "5" "\033[33mcURL error nr ${handle[0]} happend.\n" \
+                "Retrying upload after ## seconds ...\n"
         fi
         } < <(doUpload "$1" "$2" "$3" "$4" "$5" "$6")
         ((++i))
@@ -324,7 +368,7 @@ elif [[ $argc == 2 ]] && [[ -n "$CALL" ]]; then
     if [[ "$error" -ne 0 ]]; then
         handle_exit "$?" "cURL error of code $error happend."
     fi
-    handle_exit "0"
+    handle_exit "10"
 fi
 if [[ ${#ROOM_ALIASES[@]} -gt 0 ]]; then
     for a in "${ROOM_ALIASES[@]}"; do
@@ -389,13 +433,13 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
             cat "$t" > "$stuff"
             while read -r line; do
                 rename=$(echo "$line" | tr -s " ")
-                if [[ -n "$1" ]]; then
-                    rename="$1"; break
-                fi
                 if [[ -n "$rename" ]]; then
                     break
                 fi
             done < "$stuff"
+            if [[ -n "$1" ]]; then
+                rename="$1"
+            fi
             tryUpload "$stuff" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS" "$rename"
         else
             echo -e "\n\033[33;1m${t}\033[22m: This argument isn't a file or a directory. Skipping ...\033[0m\n" >&2
