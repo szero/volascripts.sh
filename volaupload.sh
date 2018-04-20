@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2153,SC1117
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=2.0
+__VOLAUPLOADSH_VERSION__=2.1
 
 if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wm \
     --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new \
@@ -27,14 +28,13 @@ else
 fi
 
 SERVER="https://volafile.org"
-COOKIE="$TMP/cuckie_$(head -c4 <(tr -dc '[:alnum:]' < /dev/urandom))"
+eval declare COOKIE="$TMP/cuckie_$(head -c6 <(tr -dc '[:alnum:]' < /dev/urandom))"
 RETRIES="3"
-UL_SERVERS=(1 5 6 7)
 
 #Return non zero value when script gets interrupted with Ctrl+C or some error occurs
 # and remove the cookie
 handle_exit() {
-    trap - SIGHUP SIGINT SIGTERM ERR EXIT
+    trap - SIGHUP SIGINT SIGTERM EXIT
     local failure
     local exit_code="$1"
     if [[ "$exit_code" == "" ]]; then
@@ -57,13 +57,29 @@ contains_element () {
   for e; do [[ "$e" == "$match" ]] && return 0; done
   return 1
 }
+
+getUploadServers() {
+    local -i server_counter=1
+    local -a ulServers
+    while [[ $server_counter -lt 12 ]]; do
+        if curl -sLIm 3 "https://dl${server_counter}.volafile.org" > /dev/null 2>&1; then
+            ulServers+=("${server_counter}")
+        fi
+        ((server_counter++))
+    done
+    # shellcheck disable=SC2178
+    ulServers="$(declare -p ulServers)"
+    local IFS=$'\v';
+    echo "${ulServers#*=}"
+}
+
 eval set -- "$OPTS"
 
 while true; do
     case "$1" in
         -h | --help) HELP="true" ; shift ;;
         -r | --room)
-            if [[ "$2" =~ [a-zA-Z0-9_-]{1,20}$ ]]; then
+            if [[ "$2" =~ [a-zA-Z0-9_-~]{1,20}$ ]]; then
                 ROOM="${BASH_REMATCH[0]}"
             else
                 handle_exit "2" "Sorry my dude, but your room ID doesn't match Volafile's format!\n"
@@ -74,13 +90,13 @@ while true; do
         -u | --room-pass) ROOMPASS="$2"; shift 2 ;;
         -a | --upload-as) RENAMES+=("$2"); shift 2 ;;
         -f | --force-server) UL_SERVER="$2"
+            eval declare -a UL_SERVERS="$(getUploadServers)"
             if ! contains_element "$UL_SERVER" "${UL_SERVERS[@]}"; then
-                IFS=$','; handle_exit "9" "Server you specified doesn't exist." \
-                "Possible values are: ${UL_SERVERS[*]//  /|}"
+                IFS=$','; handle_exit "9" "Server you wanted force upload to doesn't exist." \
+                "Possible servers are: ${UL_SERVERS[*]//  /|}"
             fi; shift 2 ;;
         -t | --retries) RETRIES="$2"
-            re="^[0-9]$"
-            if ! [[ "$RETRIES" =~ $re ]] || [[ "$RETRIES" -lt 0 ]]; then
+            if ! [[ "$RETRIES" =~ ^[0-9]$ ]] || [[ "$RETRIES" -lt 0 ]]; then
                 handle_exit "3" "You wanted to set negative number of retries or ..." \
                 "... exceeded maximum retry count.\n"
             fi ; shift 2 ;;
@@ -94,7 +110,9 @@ while true; do
     esac
 done
 
-trap handle_exit SIGHUP SIGINT SIGTERM
+trap 'handle_exit "0"' EXIT
+trap 'handle_exit "1"' SIGHUP SIGTERM
+trap handle_exit SIGINT
 
 #remove cookie on server error to get fresh session for next upload
 skip() {
@@ -235,7 +253,8 @@ makeApiCall() {
 
 doUpload() {
 
-    trap 'handle_exit "1"' SIGINT SIGHUP SIGTERM EXIT
+    trap 'handle_exit "1"' SIGHUP SIGTERM
+    trap handle_exit SIGINT
 
     local file="$1"
     local room="$2"
@@ -318,7 +337,8 @@ doUpload() {
 }
 
 tryUpload() {
-    trap 'handle_exit "1"' SIGHUP SIGTERM EXIT
+    trap 'handle_exit "1"' SIGHUP SIGTERM
+    trap handle_exit SIGINT
     local -i i=0
     while ((i<RETRIES)); do
         # first argument of 'handle' is error code
@@ -334,7 +354,7 @@ tryUpload() {
             penalty="$(bc <<< "(${handle[1]}/1000)+1")"
             counter "$penalty" "\033[33mToo many key requests, hotshot. Gotta wait ## seconds now...\n"
         elif [[ ${handle[0]} == "107" ]]; then
-            counter "3" "\033[33mRetrying in ## seconds until we force upload to ${UL_SERVER}dl server.\n"
+            counter "3" "\033[33mRetrying in ## seconds until we force upload to dl${UL_SERVER} server.\n"
             ((--i))
         else
             counter "5" "\033[33mcURL error nr ${handle[0]} happend.\n" \
@@ -379,7 +399,7 @@ if [[ ${#ROOM_ALIASES[@]} -gt 0 ]]; then
 fi
 if [[ -n "$ROOM" ]] ; then
     if ! ROOM=$(curl -fsLH "Referer: $SERVER" -H "Accept: text/values" \
-        "$SERVER/r/$ROOM" | grep -oP "\"room_id\s*\"\s*:\s*\"\K[a-zA-Z0-9-_]+(?=\",)"); then
+        "$SERVER/r/$ROOM" | grep -oP "\"room_id\s*\"\s*:\s*\"\K[a-zA-Z0-9-_~]+(?=\",)"); then
         handle_exit "5" "Room you specified doesn't exist, or Vola is busted for good this time!\n"
     fi
 fi
@@ -447,7 +467,6 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
             shift
         fi
     done
-    handle_exit "0"
 else
     print_help
 fi

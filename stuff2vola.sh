@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155
+# shellcheck disable=SC2155,SC1117
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=1.11
+__STUFF2VOLASH_VERSION__=2.0
 
 if ! OPTS=$(getopt --options hr:n:p:u:a:f:d:ob \
     --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,force-server:,dir:,audio-only,best-quality \
@@ -198,7 +198,7 @@ local eta
 local IFS=$' '
 while  read -r -a line; do
     if [[ "${line[1]}" == "100%" ]]; then
-        printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G\n" \
+        printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G\n\n" \
         "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "$speed" "$eta" >&2
     elif [[ ${line[0]} == "[download]" ]] && [[ "${line[1]}" =~ $re ]]; then
         speed="${line[5]}"
@@ -210,7 +210,7 @@ while  read -r -a line; do
         local bytes=$( bc <<< "scale=2; ${line[1]%*%} * $filesize / 100" )
         local on=$( bc <<< "$bytes * $width / $filesize" )
         local off=$( bc <<< "$width - $on" )
-        if [[ -z "$(ps -hp "$SLEEP_PID" 2>/dev/null)" ]]; then
+        if [[ -z "$(ps -hq "$SLEEP_PID" 2>/dev/null)" ]]; then
             sleep 1 &
             SLEEP_PID="$!"
             printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G" \
@@ -251,7 +251,7 @@ postStuff() {
 
     set -- "${ASS[@]}"
     for l in "${LINKS[@]}" ; do
-        dir="$TMP/volastuff_$(head -c4 <(tr -dc '[:alnum:]' < /dev/urandom))"
+        dir="$TMP/volastuff_$(head -c6 <(tr -dc '[:alnum:]' < /dev/urandom))"
         DIR_LIST="${DIR_LIST}${dir}$IFS"
         mkdir -p "$dir"
         ftype="$(getContentType "$dir" "$l")"
@@ -329,10 +329,11 @@ postStuff() {
     fi
     printf "%s" "$ARG_PREP" | xargs -d "$IFS" volaupload.sh \
           || cleanup "3" "Error on the volaupload.sh side.\n"
-    cleanup "0"
 }
 
-trap cleanup SIGHUP SIGTERM SIGINT
+trap cleanup SIGINT
+trap 'cleanup "1"' SIGHUP SIGTERM
+trap 'cleanup "0"' EXIT
 
 if [[ -n $HELP ]]; then
     print_help
