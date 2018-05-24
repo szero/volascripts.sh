@@ -20,7 +20,7 @@ Use -h or --help command for full list of capabilities. Check [Configuration](#c
 section below to learn how to preset your room, nick and password.
 
 stuff2vola.sh ver. 2.1
------------------------
+----------------------
 
 Are you a fan of redundancy and don't want to post links to stuff in chat like a pleb?
 Than this is a script for you. It will download most content from the web and upload it to
