@@ -2,7 +2,7 @@
 # shellcheck disable=SC2153,SC1117
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=2.1
+__VOLAUPLOADSH_VERSION__=2.2
 
 if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wm \
     --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new \
@@ -52,10 +52,10 @@ handle_exit() {
 }
 
 contains_element () {
-  local e match="$1"
-  shift
-  for e; do [[ "$e" == "$match" ]] && return 0; done
-  return 1
+    local e match="$1"
+    shift
+    for e; do [[ "$e" == "$match" ]] && return 0; done
+    return 1
 }
 
 getUploadServers() {
@@ -79,11 +79,13 @@ while true; do
     case "$1" in
         -h | --help) HELP="true" ; shift ;;
         -r | --room)
-            if [[ "$2" =~ [a-zA-Z0-9_-~]{1,20}$ ]]; then
-                ROOM="${BASH_REMATCH[0]}"
-            else
-                handle_exit "2" "Sorry my dude, but your room ID doesn't match Volafile's format!\n"
-            fi ; shift 2 ;;
+            if ROOM="$(echo "$2" | grep -oP "/r/\\K[a-zA-Z0-9_-]+$")"; then
+                shift 2; continue
+            fi
+            if ROOM="$(echo "$2" | grep -oP "^[a-zA-Z0-9_-]+$")"; then
+                shift 2; continue
+            fi
+            handle_exit "2" "Sorry my dude, but your room ID doesn't match Volafile's format!\n" ;;
         -c | --call) CALL="true"; shift ;;
         -n | --nick) NICK="$2"; shift 2 ;;
         -p | --pass) PASSWORD="$2"; shift 2 ;;
@@ -399,7 +401,7 @@ if [[ ${#ROOM_ALIASES[@]} -gt 0 ]]; then
 fi
 if [[ -n "$ROOM" ]] ; then
     if ! ROOM=$(curl -fsLH "Referer: $SERVER" -H "Accept: text/values" \
-        "$SERVER/r/$ROOM" | grep -oP "\"room_id\s*\"\s*:\s*\"\K[a-zA-Z0-9-_~]+(?=\",)"); then
+        "$SERVER/r/$ROOM" | grep -oP "\"room_id\s*\"\s*:\s*\"\K[a-zA-Z0-9_-]+(?=\",)"); then
         handle_exit "5" "Room you specified doesn't exist, or Vola is busted for good this time!\n"
     fi
 fi

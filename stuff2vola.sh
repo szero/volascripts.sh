@@ -2,7 +2,7 @@
 # shellcheck disable=SC2155,SC1117
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=2.0
+__STUFF2VOLASH_VERSION__=2.1
 
 if ! OPTS=$(getopt --options hr:n:p:u:a:f:d:ob \
     --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,force-server:,dir:,audio-only,best-quality \
@@ -216,16 +216,16 @@ while  read -r -a line; do
             printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G" \
             "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "$speed" "$eta" >&2
         fi
-    elif [[ ${line[1]} == "Requested" ]]; then
-        echo -e "Video and audio streams will be downloaded separately and merged together." >&2
     elif  [[ ${line[1]} == "Downloading" ]]; then
         echo >&2; echo -ne "${line[*]:1}" >&2 | tr -d "\n\r" >&2; echo >&2
     elif [[ ${line[0]} == "WARNING:" ]]; then
         continue
     elif [[ ${line[0]} == "ERROR:" ]]; then
         echo -ne "\033[31m${line[*]:1}. Skipping.\033[33m" >&2
+    elif [[ ${line[1]} == "Destination:" ]]; then
+        echo -ne "${line[*]:1}" >&2 | tr -d "\n\r" >&2; printf "\n" >&2;
     else
-        echo -ne "${line[*]:1}" >&2 | tr -d "\n\r" >&2; echo >&2
+        echo -ne "${line[*]:1}" >&2 | tr -d "\n\r" >&2; printf "\n\n" >&2;
     fi
 done
 return 0
@@ -265,10 +265,14 @@ postStuff() {
             if [[ "$l" =~ ^.*volafile\.[net|org|io] ]]; then
                 echo -e "Destination: $filepath"
                 if [[ -n "$NICK" ]] && [[ -n "$PASSWORD" ]]; then
-                    local cookie
-                    cookie="$(volaupload.sh -c login "name=$NICK&password=$PASSWORD" | cut -d$'\n' -f1)" \
-                        || cleanup "3" "Error on the volaupload.sh side.\n"
-                    $cURL -1fLH "Cookie: allow-download=1" -H "Cookie: $cookie" "$l" > "$filepath"
+                    local cookie err
+                    cookie="$(volaupload.sh -c login "name=$NICK&password=$PASSWORD")"; err="$?"
+                    if [[ $err -eq 10 ]]; then
+                        cookie="$(echo -ne "$cookie" | cut -d$'\n' -f1)"
+                        $cURL -1fLH "Cookie: allow-download=1" -H "Cookie: $cookie" "$l" > "$filepath"
+                    else
+                        cleanup "3" "Error on the volaupload.sh side.\n"
+                    fi
                 else
                     $cURL -1fLH "Cookie: allow-download=1" "$l" > "$filepath"
                 fi
@@ -276,9 +280,9 @@ postStuff() {
                 echo -e "Destination: $filepath"
                 $cURL -L "$l" > "$filepath"
             fi
+            echo >&2
         fi
         error="$?"
-        printf "\033[0m\n"
         skip "$error" "$l" || continue
         raw=$(find "$dir" -maxdepth 1 -regextype posix-egrep -regex ".+\.[a-zA-Z0-9\%\?=&_-]+$" \
             -printf "%A@ %f\n" | sort -rk1n | cut -d' ' -f2-)

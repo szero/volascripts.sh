@@ -10,7 +10,7 @@ Disclaimer
 `volaupload.sh` was originally made by [lain](https://github.com/laino) and Xiao. It seemed
 to be abandoned so I enhanced it with agrument parsing and some other features.
 
-volaupload.sh ver. 2.1
+volaupload.sh ver. 2.2
 ----------------------
 
 This script allows you to upload files to [Volafile](https://volafile.org)
@@ -19,7 +19,7 @@ files with different names without a need to rename them beforehand.
 Use -h or --help command for full list of capabilities. Check [Configuration](#configuration)
 section below to learn how to preset your room, nick and password.
 
-stuff2vola.sh ver. 2.0
+stuff2vola.sh ver. 2.1
 -----------------------
 
 Are you a fan of redundancy and don't want to post links to stuff in chat like a pleb?
