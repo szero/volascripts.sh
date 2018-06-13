@@ -19,7 +19,7 @@ bump_install() {
     name="$(echo "$1" | tr '[:lower:]' '[:upper:]')"
     name="$(echo "$name" | sed 'y/./_/')"
     name="${name}_VER="
-    sed -i -r "$(sed -n "/${name}/=" "$install")s/^(${name}).*$/\\1\\($2 $3\\)/" "$install"
+    sed -i -r "$(sed -n "/$name/=" "$install")s/^($name).*$/\\1\\($2 $3\\)/" "$install"
 }
 
 bump_script() {

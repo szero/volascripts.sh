@@ -10,7 +10,7 @@ Disclaimer
 `volaupload.sh` was originally made by [lain](https://github.com/laino) and Xiao. It seemed
 to be abandoned so I enhanced it with agrument parsing and some other features.
 
-volaupload.sh ver. 2.2
+volaupload.sh ver. 2.3
 ----------------------
 
 This script allows you to upload files to [Volafile](https://volafile.org)
@@ -19,7 +19,7 @@ files with different names without a need to rename them beforehand.
 Use -h or --help command for full list of capabilities. Check [Configuration](#configuration)
 section below to learn how to preset your room, nick and password.
 
-stuff2vola.sh ver. 2.1
+stuff2vola.sh ver. 2.2
 ----------------------
 
 Are you a fan of redundancy and don't want to post links to stuff in chat like a pleb?
@@ -29,13 +29,21 @@ Script doesn't save downloaded files by default. If you want to keep downloaded 
 specify download directory with the -d option.
 Invoke script with -h or --help command to list other options.
 
-volacrypt.sh ver. 1.2
+volacrypt.sh ver. 1.3
 ---------------------
 
 With this script you are able to upload and retrive files encrypted with symmetric AES256
 algorithm. If you will supply the script with a file, it will encrypt it and upload to
 a specified room. If you will specify valid volafile link, script will download and
 decrypt it.
+
+prowatch.sh ver. 1.0
+---------------------
+
+Ever wanted to watch something posted on vola but it was in a format that isn't playable in
+the browser? If so, then get this script, bad boi. It will work with mpv and vlc. Just use it
+with the direct link from vola as argument, see its help page for more description.
+(This can be also used by non-Pro™ users, you just won't get faster download speeds).
 
 Prerequisites
 ------------
@@ -59,6 +67,9 @@ Prerequisites
 - [inotify-tools](https://github.com/rvoicilas/inotify-tools/wiki)
     * This one is needed just for --watch command in volaupload.sh script.
       Check the script source and decide if you find this usefull.
+- [mpv](https://mpv.io/installation/)
+- [vlc](https://www.videolan.org/vlc/)
+    * One from two above is needed in prowatch.sh.
 
 Installation & Updating
 -----------------------

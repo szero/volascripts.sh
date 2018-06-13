@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1117
 
 #shamelessly adapted from https://github.com/AdrianKoshka/1339secure
 # shellcheck disable=SC2034
-__VOLACRYPTSH_VERSION__=1.2
+__VOLACRYPTSH_VERSION__=1.3
 
 if ! OPTS=$(getopt --alternative --options hr:n:p:u: \
     --longoptions help,room:,nick:,pass:,pp:,room-pass:,passphrase:,sp,skip-passphrase \
-    -n 'vid2vola.sh' -- "$@"); then
-    echo -e "\nFiled parsing options.\n" ; exit 1
+    -n 'volacrypt.sh' -- "$@"); then
+    echo -e "\nFailed while parsing options.\n" ; exit 1
 fi
 
 IFS=$'\r'
@@ -26,7 +27,7 @@ if [[ -f "$HOME/.volascriptsrc" ]]; then
 fi
 
 cleanup() {
-    trap - SIGHUP SIGTERM SIGINT
+    trap - SIGHUP SIGTERM SIGINT EXIT
     local failure
     local exit_code="$1"
     local file_to_remove="$2"
@@ -41,25 +42,6 @@ cleanup() {
         echo -e "\033[31m$failure\033[0m" >&2
    done;  exit "$exit_code"
 }
-
-eval set -- "$OPTS"
-
-while true; do
-    case "$1" in
-        -h | -help | --help) HELP="true" ; shift ;;
-        -r | -room | --room ) ROOM="$2"; shift 2;;
-        -n | -nick | --nick) NICK="$2" ; shift 2 ;;
-        -p | -password | --password) PASSWORD="$2" ; shift 2 ;;
-        -u | -room-pass | --room-pass) ROOMPASS="$2" ; shift 2 ;;
-        -pp | --pp | --passphrase ) PASSPHRASE="$2"; shift 2;;
-        -sp | --sp | --skip-passphrase ) SKIP="true"; shift ;;
-        --) shift
-            input_URI="$(echo "$1" | sed -r "s/%23/#/g")"
-            in_file="$(basename "$input_URI"  | cut -d'#' -f1)"
-            break ;;
-        * ) shift ;;
-    esac
-done
 
 print_help() {
 cat >&2 << EOF
@@ -93,8 +75,26 @@ volacrypt.sh help page
 
 EOF
 exit 0
-
 }
+
+eval set -- "$OPTS"
+
+while true; do
+    case "$1" in
+        -h | -help | --help) print_help ; shift ;;
+        -r | -room | --room ) ROOM="$2"; shift 2;;
+        -n | -nick | --nick) NICK="$2" ; shift 2 ;;
+        -p | -password | --password) PASSWORD="$2" ; shift 2 ;;
+        -u | -room-pass | --room-pass) ROOMPASS="$2" ; shift 2 ;;
+        -pp | --pp | --passphrase ) PASSPHRASE="$2"; shift 2;;
+        -sp | --sp | --skip-passphrase ) SKIP="true"; shift ;;
+        --) shift
+            input_URI="$(echo "$1" | sed -r "s/%23/#/g")"
+            in_file="$(basename "$input_URI"  | cut -d'#' -f1)"
+            break ;;
+        * ) shift ;;
+    esac
+done
 
 function encrypt_upload() {
     trap 'cleanup "" "$out_file"' SIGINT SIGTERM SIGHUP
@@ -157,9 +157,11 @@ function download_decrypt() {
     cleanup "0" "$encrypted_file"
 }
 
-if [[ -n $HELP ]]; then
-    print_help
-elif [[ -n "$PASSPHRASE" ]] && [[ -n "$SKIP" ]]; then
+trap cleanup SIGINT
+trap 'cleanup "1"' SIGHUP SIGTERM
+trap 'cleanup "0"' EXIT
+
+if [[ -n "$PASSPHRASE" ]] && [[ -n "$SKIP" ]]; then
     cleanup "6" "none" "Can't encrypt and decrypt at the same time.\n"
 elif [[ "$input_URI" == "https://volafile.org"* ]]; then
     download_decrypt

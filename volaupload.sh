@@ -2,12 +2,12 @@
 # shellcheck disable=SC2153,SC1117
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=2.2
+__VOLAUPLOADSH_VERSION__=2.3
 
 if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wm \
     --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new \
     -n 'volaupload.sh' -- "$@") ; then
-    echo -e "\nFiled parsing options.\n" ; exit 1
+    echo -e "\nFailed while parsing options.\n" ; exit 1
 fi
 
 if [[ -f "$HOME/.volascriptsrc" ]]; then
@@ -73,11 +73,65 @@ getUploadServers() {
     echo "${ulServers#*=}"
 }
 
+print_help() {
+cat >&2 << EOF
+
+volaupload.sh help page
+
+   Upload files or whole directories to volafile. Every argument that is
+   not prepended with any option will be treated as upload target.
+
+-h, --help
+   Show this help message.
+
+-r, --room <room_name>
+   Specifiy upload room. (This plus at least one upload target is the only
+   required option to upload something).
+
+-c, --call <method> <query>
+   Make Rest API call.
+
+-n, --nick <name>
+   Specify name, under which your file(s) will be uploaded.
+
+-p, --pass <password>
+   Set your account password. If you upload as logged user, file
+   uploads will count towards your file statistics on Volafile.
+   See https://volafile.org/user/<your_username>
+
+-u, --room-pass <password>
+    You need to specify this only for password protected rooms.
+
+-a, --upload-as <renamed_file>
+   Upload file with custom name. (It won't overwrite the filename in your
+   fielsystem). You can upload multiple renamed files.
+   Example:
+       volaupload.sh -r BEEPi file1.jpg file2.png -a funny.jpg -a nasty.png
+   First occurence of -a parameter always renames first given file and so on.
+
+-f, --force-server <server_number>
+   Force uploading to a specific server because not all of them are equal.
+
+-t, --retries <number>
+   Specify number of retries when upload fails. Defaults to 3.
+   You can't retry more than 9 times.
+
+-w, --watch <directory>
+   Makes your script to watch over specific directory. Every file added
+   to that directory will be uploaded to Volafile. (To exit press Ctrl+C)
+
+-m, --most-new <directory>
+   Uploads only the first file that was recently modified in specified directory
+
+EOF
+exit 0
+}
+
 eval set -- "$OPTS"
 
 while true; do
     case "$1" in
-        -h | --help) HELP="true" ; shift ;;
+        -h | --help) print_help ; shift ;;
         -r | --room)
             if ROOM="$(echo "$2" | grep -oP "/r/\\K[a-zA-Z0-9_-]+$")"; then
                 shift 2; continue
@@ -129,62 +183,6 @@ if [[ $(type curlbar 2>/dev/null) ]]; then
 else
     cURL="curl"
 fi
-
-print_help() {
-local IFS=$','
-cat >&2 << EOF
-
-volaupload.sh help page
-
-   Upload files or whole directories to volafile. Every argument that is
-   not prepended with any option will be treated as upload target.
-
--h, --help
-   Show this help message.
-
--r, --room <room_name>
-   Specifiy upload room. (This plus at least one upload target is the only
-   required option to upload something).
-
--c, --call <method> <query>
-   Make Rest API call.
-
--n, --nick <name>
-   Specify name, under which your file(s) will be uploaded.
-
--p, --pass <password>
-   Set your account password. If you upload as logged user, file
-   uploads will count towards your file statistics on Volafile.
-   See https://volafile.org/user/<your_username>
-
--u, --room-pass <password>
-    You need to specify this only for password protected rooms.
-
--a, --upload-as <renamed_file>
-   Upload file with custom name. (It won't overwrite the filename in your
-   fielsystem). You can upload multiple renamed files.
-   Example:
-       volaupload.sh -r BEEPi file1.jpg file2.png -a funny.jpg -a nasty.png
-   First occurence of -a parameter always renames first given file and so on.
-
--f, --force-server <server_number>
-   Force uploading to a specific server because not all of them are equal.
-   Possible server values: ${UL_SERVERS[*]//  /|}
-
--t, --retries <number>
-   Specify number of retries when upload fails. Defaults to 3.
-   You can't retry more than 9 times.
-
--w, --watch <directory>
-   Makes your script to watch over specific directory. Every file added
-   to that directory will be uploaded to Volafile. (To exit press Ctrl+C)
-
--m, --most-new <directory>
-   Uploads only the first file that was recently modified in specified directory
-
-EOF
-exit 0
-}
 
 extract() {
     local line b _key="$2"
@@ -379,9 +377,7 @@ getExtension() {
 declare -i argc
 argc=${#TARGETS[@]}
 
-if [[ -n "$HELP" ]]; then
-    print_help
-elif [[ $argc -eq 0 ]]; then
+if [[ $argc -eq 0 ]]; then
     handle_exit "4" "You didn't specify any files that can be uploaded!\n"
 elif [[ $argc == 2 ]] && [[ -n "$CALL" ]]; then
     set -f ; set -- "${TARGETS[@]}"

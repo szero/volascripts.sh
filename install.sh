@@ -4,9 +4,10 @@
 set -uo pipefail
 IFS=$'\n\t'
 
-VOLAUPLOAD_SH_VER=(2 2)
-STUFF2VOLA_SH_VER=(2 1)
-VOLACRYPT_SH_VER=(1 2)
+VOLAUPLOAD_SH_VER=(2 3)
+STUFF2VOLA_SH_VER=(2 2)
+VOLACRYPT_SH_VER=(1 3)
+PROWATCH_SH_VER=(1 0)
 CURLBAR_VER=(1 1)
 
 add_path() {
@@ -53,8 +54,10 @@ _check_version() {
 
 version_check() {
     local version
-    local -a ver=( "${@:3:5}" )
-    if version=$(_check_version "$1" "$2"); then
+    local -a ver=( "${@:2:4}" )
+    local ver_str
+    ver_str="__$(echo "$1" | tr -d "." | tr "[:lower:]" "[:upper:]")_VERSION__"
+    if version=$(_check_version "$1" "$ver_str"); then
         if [[ $(echo "$version" | cut -d'.' -f1) -ge ${ver[0]} ]] && \
            [[ $(echo "$version" | cut -d'.' -f2) -ge ${ver[1]} ]]; then
             echo -e "\nYour $1 version is up to date!"
@@ -75,13 +78,13 @@ installing() {
         chmod a+rx "$1/youtube-dl"
     fi
     echo -e "\nDo you want to install/update curlbar?"
-    echo -e "With curlbar you will have more verbose upload bar in volaupload.sh script."
+    echo -e "With curlbar you will have more verbose upload bar in volascripts."
     while true; do
         local yn; printf "\033[32m[Y]es\033[0m/\033[31m[N]o\033[0m) "; read -er yn
         case "$yn" in
             [Yy]*)
             if [[ "${BASH_VERSINFO[0]}" -ge 4 ]] && [[ "${BASH_VERSINFO[1]}" -ge 3 ]]; then
-                if ! version_check "curlbar" "__CURLBAR_VERSION__" "${CURLBAR_VER[@]}" ; then
+                if ! version_check "curlbar" "${CURLBAR_VER[@]}" ; then
                     install_curlbar "$1"
                 fi
             else
@@ -92,14 +95,17 @@ installing() {
             * )  continue ;;
         esac
     done
-    if ! version_check "volaupload.sh" "__VOLAUPLOADSH_VERSION__" "${VOLAUPLOAD_SH_VER[@]}" ; then
+    if ! version_check "volaupload.sh" "${VOLAUPLOAD_SH_VER[@]}" ; then
         install_stuff "$1" "volaupload.sh"
     fi
-    if ! version_check "stuff2vola.sh" "__STUFF2VOLASH_VERSION__" "${STUFF2VOLA_SH_VER[@]}" ; then
+    if ! version_check "stuff2vola.sh" "${STUFF2VOLA_SH_VER[@]}" ; then
         install_stuff "$1" "stuff2vola.sh"
     fi
-    if ! version_check "volacrypt.sh" "__VOLACRYPTSH_VERSION__" "${VOLACRYPT_SH_VER[@]}" ; then
+    if ! version_check "volacrypt.sh" "${VOLACRYPT_SH_VER[@]}" ; then
         install_stuff "$1" "volacrypt.sh"
+    fi
+    if ! version_check "prowatch.sh" "${PROWATCH_SH_VER[@]}" ; then
+        install_stuff "$1" "prowatch.sh"
     fi
 }
 

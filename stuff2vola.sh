@@ -2,12 +2,12 @@
 # shellcheck disable=SC2155,SC1117
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=2.1
+__STUFF2VOLASH_VERSION__=2.2
 
 if ! OPTS=$(getopt --options hr:n:p:u:a:f:d:ob \
     --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,force-server:,dir:,audio-only,best-quality \
-    -n 'vid2vola.sh' -- "$@"); then
-    echo -e "\nFiled parsing options.\n"; exit 1
+    -n 'stuff2vola.sh' -- "$@"); then
+    echo -e "\nFailed while parsing options.\n"; exit 1
 fi
 
 if [[ -f "$HOME/.volascriptsrc" ]]; then
@@ -27,7 +27,7 @@ cleanup() {
     for d in $DIR_LIST ; do
         rm -rf "$d"
     done
-    trap - SIGHUP SIGTERM SIGINT
+    trap - SIGHUP SIGTERM SIGINT EXIT
     local failure
     local exit_code="$1"
     if [[ "$exit_code" == "" ]]; then
@@ -38,35 +38,6 @@ cleanup() {
         echo -e "\033[31m$failure\033[0m" >&2
     done; exit "$exit_code"
 }
-
-eval set -- "$OPTS"
-
-while true; do
-    case "$1" in
-        -h | --help) HELP="true" ; shift ;;
-        -r | --room ) ROOM="$2"; shift 2 ;;
-        -n | --nick) NICK="$2" ; shift 2 ;;
-        -p | --pass) PASSWORD="$2" ; shift 2 ;;
-        -u | --room-pass) ROOMPASS="$2"; shift 2 ;;
-        -a | --upload-as) ASS+=("$2"); shift 2 ;;
-        -f | --force-server) UL_SERVER="$2"; shift 2 ;;
-        -d | --dir) VID_DIR="$2"
-                if [[ ! -d "$VID_DIR" ]]; then
-                    cleanup "4" "\nYou specified invalid directory.\n"
-                fi
-                if [[ "$VID_DIR" == "." ]]; then
-                   VID_DIR="$PWD"
-                fi; shift 2 ;;
-        -o | --audio-only) A_ONLY="true"; shift ;;
-        -b | --best-quality) BEST_Q="true"; shift ;;
-        --) shift;
-            until [[ -z "$1" ]]; do
-                LINKS+=("$1") ; shift
-            done ; break ;;
-        * ) shift ;;
-    esac
-done
-
 
 print_help() {
 cat >&2 << EOF
@@ -116,6 +87,34 @@ stuff2vola.sh help page
 EOF
 exit 0
 }
+
+eval set -- "$OPTS"
+
+while true; do
+    case "$1" in
+        -h | --help) print_help ; shift ;;
+        -r | --room ) ROOM="$2"; shift 2 ;;
+        -n | --nick) NICK="$2" ; shift 2 ;;
+        -p | --pass) PASSWORD="$2" ; shift 2 ;;
+        -u | --room-pass) ROOMPASS="$2"; shift 2 ;;
+        -a | --upload-as) ASS+=("$2"); shift 2 ;;
+        -f | --force-server) UL_SERVER="$2"; shift 2 ;;
+        -d | --dir) VID_DIR="$2"
+                if [[ ! -d "$VID_DIR" ]]; then
+                    cleanup "4" "\nYou specified invalid directory.\n"
+                fi
+                if [[ "$VID_DIR" == "." ]]; then
+                   VID_DIR="$PWD"
+                fi; shift 2 ;;
+        -o | --audio-only) A_ONLY="true"; shift ;;
+        -b | --best-quality) BEST_Q="true"; shift ;;
+        --) shift;
+            until [[ -z "$1" ]]; do
+                LINKS+=("$1") ; shift
+            done ; break ;;
+        * ) shift ;;
+    esac
+done
 
 if [[ -z "$(which curlbar)" ]]; then
     cURL="curl"
@@ -221,7 +220,7 @@ while  read -r -a line; do
     elif [[ ${line[0]} == "WARNING:" ]]; then
         continue
     elif [[ ${line[0]} == "ERROR:" ]]; then
-        echo -ne "\033[31m${line[*]:1}. Skipping.\033[33m" >&2
+        echo -ne "\033[31m${line[*]:1}. Skipping...\033[33m\n" >&2
     elif [[ ${line[1]} == "Destination:" ]]; then
         echo -ne "${line[*]:1}" >&2 | tr -d "\n\r" >&2; printf "\n" >&2;
     else
@@ -339,9 +338,7 @@ trap cleanup SIGINT
 trap 'cleanup "1"' SIGHUP SIGTERM
 trap 'cleanup "0"' EXIT
 
-if [[ -n $HELP ]]; then
-    print_help
-elif [[ "${#LINKS[@]}" -eq 0 ]]; then
+if [[ "${#LINKS[@]}" -eq 0 ]]; then
     cleanup "1" "My dude, comon. You tried to download nothing.\n"
 else
     download_start="$(date "+%s")"
