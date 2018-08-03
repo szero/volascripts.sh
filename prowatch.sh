@@ -2,7 +2,7 @@
 # shellcheck disable=SC1117
 
 # shellcheck disable=SC2034
-__PROWATCHSH_VERSION__=1.0
+__PROWATCHSH_VERSION__=1.1
 
 if ! OPTS=$(getopt --alternative --options hn:p: \
     --longoptions help,nick:,pass: \
@@ -94,7 +94,7 @@ cookie="$(echo -ne "$cookie" | cut -d$'\n' -f1)"
 if [[ $err -eq 10 ]]; then
     for l in "${LINKS[@]}"; do
         if [[ $(type mpv 2>/dev/null) ]]; then
-            mpv "$l" --cookies --http-header-fields="Cookie: $cookie; allow-download=1"
+            mpv "$l" --no-ytdl --cookies --http-header-fields="Cookie: $cookie; allow-download=1"
         elif [[ $(type vlc 2>/dev/null) ]]; then
             curl -1sfLH "Cookie: $cookie" -H "Cookie: allow-download=1" "$l" | vlc -
         else

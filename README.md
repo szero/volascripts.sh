@@ -19,7 +19,7 @@ files with different names without a need to rename them beforehand.
 Use -h or --help command for full list of capabilities. Check [Configuration](#configuration)
 section below to learn how to preset your room, nick and password.
 
-stuff2vola.sh ver. 2.2
+stuff2vola.sh ver. 2.3
 ----------------------
 
 Are you a fan of redundancy and don't want to post links to stuff in chat like a pleb?
@@ -37,8 +37,8 @@ algorithm. If you will supply the script with a file, it will encrypt it and upl
 a specified room. If you will specify valid volafile link, script will download and
 decrypt it.
 
-prowatch.sh ver. 1.0
----------------------
+prowatch.sh ver. 1.1
+--------------------
 
 Ever wanted to watch something posted on vola but it was in a format that isn't playable in
 the browser? If so, then get this script, bad boi. It will work with mpv and vlc. Just use it
@@ -46,7 +46,7 @@ with the direct link from vola as argument, see its help page for more descripti
 (This can be also used by non-Pro™ users, you just won't get faster download speeds).
 
 Prerequisites
-------------
+-------------
 
 - [bash](https://www.gnu.org/software/bash/) >= 4.0
     * 4.3 version is needed if you want to have better upload bar in volaupload.sh

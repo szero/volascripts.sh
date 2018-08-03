@@ -2,7 +2,7 @@
 # shellcheck disable=SC2155,SC1117
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=2.2
+__STUFF2VOLASH_VERSION__=2.3
 
 if ! OPTS=$(getopt --options hr:n:p:u:a:f:d:ob \
     --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,force-server:,dir:,audio-only,best-quality \
@@ -129,10 +129,10 @@ skip() {
             if [[ $1 -eq 102 ]]; then
                 printf "\033[33mFile was too small to make me bothered with printing the progress bar.\033[0m\n\n" >&2
             fi ; return 0 ;;
-        22) echo -e "\n$2: No such file on the interwebs.\033[0m\n" >&2; return 1 ;;
-        6 ) echo -e "\n$2: This link is busted or its not a link at all."
+        22) echo -e "$2: No such file on the interwebs.\033[0m\n" >&2; return 1 ;;
+        3 | 6 ) echo -e "$2: This link is busted or its not a link at all."
             echo -e "Try with a valid one.\033[0m\n" >&2; return 1 ;;
-        * ) echo -e "\ncURL error of code $1 happend.\033[0m\n" >&2; return 1 ;;
+        * ) echo -e "cURL error of code $1 happend.\033[0m\n" >&2; return 1 ;;
     esac
 }
 
@@ -295,7 +295,7 @@ postStuff() {
         local CR=$'\r'
         for f in $file ; do
             if [[ -n "$1" ]] && [[ -d "$VID_DIR" ]]; then
-                mv -f "${dir}/${f}" "${dir}/$1.${f##*.}"
+                mv -f "${dir}/${f}" "${dir}/$1.${f##*.}" 2>/dev/null
                 cp -n "${dir}/$1.${f##*.}" "$VID_DIR"
                 ARG_PREP="${ARG_PREP}${dir}/$1.${f##*.}$CR"; shift
             elif [[ -d "$VID_DIR" ]]; then
