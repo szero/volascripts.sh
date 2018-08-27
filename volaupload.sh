@@ -125,7 +125,8 @@ volaupload.sh help page
 
 -v, --vanned
    V& mode. After specifying this option, each consecutive file that manages to
-   upload will be removed from your storage.
+   upload will be removed from your storage. This command delete the directories too,
+   so watch out!
 
 EOF
 exit 0
@@ -453,7 +454,7 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
             done
             if [[ -d "$t" ]] && [[ -n "$ANTIRAID" ]]; then
                 rm -rf "$t"
-                echo -e "\033[33;1m${f}\033[22m: Purged this bad boi...\033[0m\n" >&2
+                echo -e "\033[33;1m${t}\033[22m: Purged this directory...\033[0m\n" >&2
             fi
         elif [[ -f "$t" ]] && [[ -n "$1" ]]; then
             tryUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS" "$(getExtension "$1" "$t")" ; shift
