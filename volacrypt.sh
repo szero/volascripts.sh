@@ -96,7 +96,7 @@ while true; do
     esac
 done
 
-function encrypt_upload() {
+encrypt_upload() {
     trap 'cleanup "" "$out_file"' SIGINT SIGTERM SIGHUP
     local pass; pass="$(< /dev/urandom tr -dc '[:alnum:]' | head -c22)"  # ~131bits entropy
     if [[ "$SKIP" == "true" ]]; then
@@ -132,7 +132,7 @@ function encrypt_upload() {
     cleanup "0" "$out_file"
 }
 
-function download_decrypt() {
+download_decrypt() {
     trap 'cleanup "" "$encrypted_file"' SIGINT SIGTERM SIGHUP
     local encrypted_file
     local pass

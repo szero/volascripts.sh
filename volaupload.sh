@@ -2,10 +2,10 @@
 # shellcheck disable=SC2153,SC1117
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=2.3
+__VOLAUPLOADSH_VERSION__=2.4
 
-if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wm \
-    --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new \
+if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wmv \
+    --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new,vanned \
     -n 'volaupload.sh' -- "$@") ; then
     echo -e "\nFailed while parsing options.\n" ; exit 1
 fi
@@ -123,6 +123,10 @@ volaupload.sh help page
 -m, --most-new <directory>
    Uploads only the first file that was recently modified in specified directory
 
+-v, --vanned
+   V& mode. After specifying this option, each consecutive file that manages to
+   upload will be removed from your storage.
+
 EOF
 exit 0
 }
@@ -156,8 +160,9 @@ while true; do
                 handle_exit "3" "You wanted to set negative number of retries or ..." \
                 "... exceeded maximum retry count.\n"
             fi ; shift 2 ;;
-        -w | --watch) WATCHING="true" ; shift ;;
-        -m | --most-new) NEWEST="true" ; shift ;;
+        -w | --watch) WATCHING="true"; shift ;;
+        -m | --most-new) NEWEST="true"; shift ;;
+        -v | --vanned) ANTIRAID="true"; shift ;;
         --) shift;
             until [[ -z "$1" ]]; do
                 TARGETS+=("$1") ; shift
@@ -441,11 +446,27 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
                 elif [[ -f "$f" ]]; then
                     tryUpload "${f}" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS"
                 fi
+                if [[ -f "$f" ]] && [[ -n "$ANTIRAID" ]]; then
+                    rm -rf "$f"
+                    echo -e "\033[33;1m${f}\033[22m: Purged this bad boi...\033[0m\n" >&2
+                fi
             done
+            if [[ -d "$t" ]] && [[ -n "$ANTIRAID" ]]; then
+                rm -rf "$t"
+                echo -e "\033[33;1m${f}\033[22m: Purged this bad boi...\033[0m\n" >&2
+            fi
         elif [[ -f "$t" ]] && [[ -n "$1" ]]; then
             tryUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS" "$(getExtension "$1" "$t")" ; shift
+            if [[ -n "$ANTIRAID" ]]; then
+                rm -rf "$t"
+                echo -e "\033[33;1m${t}\033[22m: Purged this bad boi...\033[0m\n" >&2
+            fi
         elif [[ -f "$t" ]] ; then
             tryUpload "$t" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS"
+            if [[ -n "$ANTIRAID" ]]; then
+                rm -rf "$t"
+                echo -e "\033[33;1m${t}\033[22m: Purged this bad boi...\033[0m\n" >&2
+            fi
         elif [[ "$(readlink "$t")" == "pipe:"* ]]; then
             stuff="$(mktemp)"
             cat "$t" > "$stuff"
