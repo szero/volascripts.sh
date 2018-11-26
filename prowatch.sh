@@ -96,7 +96,7 @@ if [[ $err -eq 10 ]]; then
         if [[ $(type mpv 2>/dev/null) ]]; then
             mpv "$l" --no-ytdl --cookies --http-header-fields="Cookie: $cookie; allow-download=1"
         elif [[ $(type vlc 2>/dev/null) ]]; then
-            curl -1sfLH "Cookie: $cookie" -H "Cookie: allow-download=1" "$l" | vlc -
+            curl -1sfLH "Cookie: $cookie; allow-download=1" "$l" -o - | vlc -
         else
             handle_exit "3" "Install mpv or vlc if you want to use this script!" \
                 "Type 'prowatch.sh --help' for more info."

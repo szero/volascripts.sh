@@ -10,7 +10,7 @@ Disclaimer
 `volaupload.sh` was originally made by [lain](https://github.com/laino) and Xiao. It seemed
 to be abandoned so I enhanced it with agrument parsing and some other features.
 
-volaupload.sh ver. 2.4
+volaupload.sh ver. 2.5
 ----------------------
 
 This script allows you to upload files to [Volafile](https://volafile.org)

@@ -2,7 +2,7 @@
 # shellcheck disable=SC2153,SC1117
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=2.4
+__VOLAUPLOADSH_VERSION__=2.5
 
 if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wmv \
     --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new,vanned \
@@ -274,13 +274,13 @@ doUpload() {
         roompass="&password=$roompass"
     fi
     if [[ -n "$name" ]] && [[ -n "$pass" ]]; then
-        response=$(makeApiCall getUploadKey "name=$name&room=$room$roompass" "$room" "$name" "$pass")
+        response=$(makeApiCall getUploadKey "name=$name&room=$room" "$room" "$name" "$pass")
     elif [[ -n "$name" ]]; then
-        response=$(makeApiCall getUploadKey "name=$name&room=$room$roompass" "$room")
+        response=$(makeApiCall getUploadKey "name=$name&room=$room" "$room")
     else
         #If user didn't specify name, default it to Volaphile.
         name="Volaphile"
-        response=$(makeApiCall getUploadKey "name=$name&room=$room$roompass" "$room")
+        response=$(makeApiCall getUploadKey "name=$name&room=$room" "$room")
     fi
     error="$?"
     case "$error" in
@@ -317,19 +317,19 @@ doUpload() {
         #curlbar prints stuff to stderr so we change color in that descriptor
         echo -e "$up_str" >&2
         $cURL -1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
-            "${server}/upload?room=${room}&key=${key}" 1>/dev/null
+            "${server}/upload?room=${room}&key=${key}${roompass}" 1>/dev/null
         error="$?"
     else
         echo -e "$up_str" >&2
         echo -e "-> File renamed to: \033[1m${renamed}\033[22m\033[33m" >&2
         $cURL -1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
-            "${server}/upload?room=${room}&key=${key}" 1>/dev/null
+            "${server}/upload?room=${room}&key=${key}${roompass}" 1>/dev/null
         error="$?"
         file="$renamed"
     fi
     printf "\033[0m" >&2
     case $error in
-        0 | 102) #Replace spaces with %20 so my terminal url finder can see links properly.
+        0 | 1 | 102) #Replace spaces with %20 so my terminal url finder can see links properly.
             if [[ $error -eq 102 ]]; then
                 printf "\033[33mFile was too small to make me bothered with printing the progress bar.\033[0m\n" >&2
             fi
@@ -350,7 +350,8 @@ tryUpload() {
         # first argument of 'handle' is error code
         # second and later arguments are whatever
         { local IFS=$'\n'; read -r -d'#' -a handle
-        if [[ ${handle[0]} == "0" ]] || [[ ${handle[0]} == "102" ]] ; then
+        if [[ ${handle[0]} == "0" ]] || [[ ${handle[0]} == "1" ]] \
+            || [[ ${handle[0]} == "102" ]]; then
             return
         elif [[ ${handle[0]} == "101" ]] || [[ ${handle[0]} == "104" ]] \
             || [[ ${handle[0]} == "105" ]] || [[ ${handle[0]} == "106" ]]; then

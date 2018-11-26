@@ -73,16 +73,17 @@ stuff2vola.sh help page
    Force uploading to a specific server because not all of them are equal.
 
 -d, --dir <destination_directory>
-    If you will specify this option, all of your downloaded files will be saved
-    into the given directory.
+    If you will specify this option, all of your downloaded files will be
+    saved into the given directory.
 
 -o, --audio-only
-    If file you want forward to Volafile is a video, this option will strip video
-    stream from it and upload only audio stream.
+    If file you want forward to Volafile is a video, this option will strip
+    video stream from it and upload only audio stream.
 
 -b, --best-quality
-    Script downloads videos in 720p resolution and lossy audio files like opus or mp3 by
-    default. Set this option to download highest quality video and audio files.
+    Script downloads videos in 720p resolution and lossy audio files like
+    opus or mp3 by default. Set this option to download highest quality
+    video and audio files.
 
 EOF
 exit 0
@@ -315,12 +316,12 @@ postStuff() {
     local current; current="$(date "+%s")"
     echo -en "\033[0mDownloading completed in "
     TZ='' date -d "@$((current-download_start))" "+%H hours, %M minutes and %S seconds.%n"
-    if [[ -n "$NICK" ]]; then
+    #if [[ -n "$NICK" ]]; then
         ARG_PREP="${ARG_PREP}-n$IFS$NICK$IFS"
-    fi
-    if [[ -n "$PASSWORD" ]]; then
+    #fi
+    #if [[ -n "$PASSWORD" ]]; then
         ARG_PREP="${ARG_PREP}-p$IFS$PASSWORD$IFS"
-    fi
+    #fi
     if [[ -n "$ROOMPASS" ]]; then
         ARG_PREP="${ARG_PREP}-u$IFS$ROOMPASS$IFS"
     fi
