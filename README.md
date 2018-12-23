@@ -88,7 +88,7 @@ To install on all UNIX-like systems for current user (into `~/.local/bin` direct
 
 To install on all UNIX-like systems for all users (into `/usr/local/bin` directory) type:
 
-    sudo bash -c 'bash <(curl -sLo- https://rawgit.com/Szero/volascripts.sh/master/install.sh)'
+    sudo bash -c 'bash <(curl -sLo- https://raw.githubusercontent.com/szero/volascripts.sh/master/install.sh)'
 
 Restart your terminal to finalize installation process.
 Install script is responsible both for updating and installing so you are good with running it
