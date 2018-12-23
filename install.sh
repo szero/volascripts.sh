@@ -20,7 +20,7 @@ fi
 
 install_stuff() {
     echo -e "\nInstalling $2 ...\n"
-    if ! curl --progress-bar -fL "https://rawgit.com/Szero/volascripts.sh/master/$2" -o "$1/$2" ; then
+    if ! curl --progress-bar -fL "https://raw.githubusercontent.com/szero/volascripts.sh/master/$2" -o "$1/$2" ; then
         echo -e "\nError while fetching $2. Aborting its installation."
     else
         chmod a+rx "$1/$2"

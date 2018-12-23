@@ -84,7 +84,7 @@ installed with install script if you don't have them already.
 
 To install on all UNIX-like systems for current user (into `~/.local/bin` directory) type:
 
-    bash <(curl -sLo- https://rawgit.com/Szero/volascripts.sh/master/install.sh)
+    bash <(curl -sLo- https://raw.githubusercontent.com/szero/volascripts.sh/master/install.sh)
 
 To install on all UNIX-like systems for all users (into `/usr/local/bin` directory) type:
 
