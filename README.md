@@ -37,7 +37,7 @@ algorithm. If you will supply the script with a file, it will encrypt it and upl
 a specified room. If you will specify valid volafile link, script will download and
 decrypt it.
 
-prowatch.sh ver. 1.1
+prowatch.sh ver. 1.2
 --------------------
 
 Ever wanted to watch something posted on vola but it was in a format that isn't playable in

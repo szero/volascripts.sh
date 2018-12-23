@@ -2,7 +2,7 @@
 # shellcheck disable=SC1117
 
 # shellcheck disable=SC2034
-__PROWATCHSH_VERSION__=1.1
+__PROWATCHSH_VERSION__=1.2
 
 if ! OPTS=$(getopt --alternative --options hn:p: \
     --longoptions help,nick:,pass: \
@@ -87,20 +87,26 @@ argc=${#LINKS[@]}
 if [[ $argc -eq 0 ]]; then
     handle_exit "2" "You didn't specify any files that can be streamed!\n"
 elif [[ -z "$NICK" ]] || [[ -z "$PASSWORD" ]]; then
-    warn "No nick and/or password? Than no pro speeds while watching."
+    warn "No nick and/or password supplied." \
+        "Video will be buffered with regular Vola speeds."
 fi
-cookie="$(volaupload.sh -c login "name=$NICK&password=$PASSWORD")"; err="$?"
-cookie="$(echo -ne "$cookie" | cut -d$'\n' -f1)"
+cookie="Cookie: allow-download=1"
+session="$(volaupload.sh -c login "name=$NICK&password=$PASSWORD")"; err="$?"
+session="$(echo -ne "$session" | cut -d$'\n' -f1)"
+if [[ "$(echo -ne "$session" | cut -d'=' -f1)" != "error.code" ]]; then
+    cookie+="; $session"
+fi
 if [[ $err -eq 10 ]]; then
     for l in "${LINKS[@]}"; do
         if [[ $(type mpv 2>/dev/null) ]]; then
-            mpv "$l" --no-ytdl --cookies --http-header-fields="Cookie: $cookie; allow-download=1"
+            mpv "$l" --no-ytdl --cookies --http-header-fields="$cookie"
         elif [[ $(type vlc 2>/dev/null) ]]; then
-            curl -1sfLH "Cookie: $cookie; allow-download=1" "$l" -o - | vlc -
+            curl -1sfLH "$cookie" "$l" -o - | vlc -
         else
             handle_exit "3" "Install mpv or vlc if you want to use this script!" \
                 "Type 'prowatch.sh --help' for more info."
         fi
     done
+    handle_exit "0"
 fi
-
+handle_exit "4" "cURL error of code $err happened"
