@@ -2,7 +2,7 @@
 # shellcheck disable=SC2153,SC1117
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=2.5
+__VOLAUPLOADSH_VERSION__=2.6
 
 if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wmv \
     --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new,vanned \
@@ -249,10 +249,10 @@ makeApiCall() {
         if [[ "$cookie" == "error.code=403" ]]; then
             return 101
         fi
-        curl -1L -b "$cookie" -H "Origin: ${SERVER}" -H "$ref" \
+        curl -1fL -b "$cookie" -H "Origin: ${SERVER}" -H "$ref" \
             -H "Accept: text/values" "${SERVER}/rest/${method}?${query}" 2>/dev/null
     else
-        curl -1L -H "Origin: ${SERVER}" -H "$ref" \
+        curl -1fL -H "Origin: ${SERVER}" -H "$ref" \
             -H "Accept: text/values" "${SERVER}/rest/${method}?${query}" 2>/dev/null
     fi
 }
@@ -289,7 +289,7 @@ doUpload() {
              echo "Either that, or volafile is dead.#"; return ;;
         101) echo "101"; echo "Login Error: You used wrong login and/or password my dude."
              echo "You wanna login properly, so those sweet volastats can stack up!#";  return;;
-        *  ) echo "105"; echo "cURL error of code $error happend.#"; return ;;
+        *  ) echo "105"; echo "cURL error of code $error happend while querying the REST API.#"; return ;;
     esac
     error=$(extract "$response" "error.code")
     if [[ "$error" == "429" ]]; then
