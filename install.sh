@@ -8,7 +8,7 @@ VOLAUPLOAD_SH_VER=(2 6)
 STUFF2VOLA_SH_VER=(2 3)
 VOLACRYPT_SH_VER=(1 3)
 PROWATCH_SH_VER=(1 2)
-CURLBAR_VER=(1 1)
+CURLBAR_VER=(1 2)
 
 add_path() {
 if ! [[ $PATH =~ $2 ]]; then
@@ -29,7 +29,7 @@ install_stuff() {
 
 install_curlbar() {
     echo -e "\nInstalling curlbar ...\n"
-    if ! curl --progress-bar -fL "https://gist.githubusercontent.com/Szero/cd496ca43df4b871df75818ebcc40233/raw/68d0864421cbf7ca2dccfc4033463692bf442562/curlbar" -o "$1/curlbar" ;then
+    if ! curl --progress-bar -fL "https://gist.githubusercontent.com/szero/cd496ca43df4b871df75818ebcc40233/raw/c9f7ce19d0d76e8b20b5e573b7236178b0158f53/curlbar" -o "$1/curlbar" ;then
         echo -e "\nError while fetching curlbar. Aborting its installation."
     else
         chmod a+rx "$1/curlbar"

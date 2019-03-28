@@ -117,7 +117,7 @@ while true; do
     esac
 done
 
-if [[ -z "$(which curlbar)" ]]; then
+if [[ -z "$(command -v curlbar)" ]]; then
     cURL="curl"
 else
     cURL="curlbar"
