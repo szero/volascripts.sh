@@ -2,7 +2,7 @@
 # shellcheck disable=SC2155,SC1117
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=2.3
+__STUFF2VOLASH_VERSION__=2.4
 
 if ! OPTS=$(getopt --options hr:n:p:u:a:f:d:ob \
     --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,force-server:,dir:,audio-only,best-quality \
@@ -211,7 +211,7 @@ while  read -r -a line; do
         local on=$( bc <<< "$bytes * $width / $filesize" )
         local off=$( bc <<< "$width - $on" )
         if [[ -z "$(ps -hq "$SLEEP_PID" 2>/dev/null)" ]]; then
-            sleep 1 &
+            sleep 0.1 &
             SLEEP_PID="$!"
             printf "\x1B[0G %-5s\x1B[7m%*s\x1B[27m%*s of %9s at %9s %8s ETA\x1B[0K\x1B[${curpos}G" \
             "${percent%%.*}%" "$on" "" "$off" "" "${line[3]//[~]}" "$speed" "$eta" >&2
