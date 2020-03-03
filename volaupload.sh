@@ -2,10 +2,10 @@
 # shellcheck disable=SC2153,SC1117
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=2.6
+__VOLAUPLOADSH_VERSION__=2.7
 
-if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wmv \
-    --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new,vanned \
+if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wmvb: \
+    --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new,vanned,server-blacklist \
     -n 'volaupload.sh' -- "$@") ; then
     echo -e "\nFailed while parsing options.\n" ; exit 1
 fi
@@ -112,12 +112,16 @@ volaupload.sh help page
 -f, --force-server <server_number>
    Force uploading to a specific server because not all of them are equal.
 
+-b, --server-blacklist <1,2,3..N>
+   Comma separated lists of servers we don't want to talk about right now.
+   Uploads will go to any server that isn't on said list.
+
 -t, --retries <number>
    Specify number of retries when upload fails. Defaults to 3.
    You can't retry more than 9 times.
 
 -w, --watch <directory>
-   Makes your script to watch over specific directory. Every file added
+   Makes your script watch over a specific directory. Every file added
    to that directory will be uploaded to Volafile. (To exit press Ctrl+C)
 
 -m, --most-new <directory>
@@ -156,6 +160,11 @@ while true; do
                 IFS=$','; handle_exit "9" "Server you wanted force upload to doesn't exist." \
                 "Possible servers are: ${UL_SERVERS[*]//  /|}"
             fi; shift 2 ;;
+        -b | --server-blacklist) echo "$UL_SERVERS"
+            if [[ -n "$UL_SERVERS" ]]; then
+                handle_exit "12" "Don't use this option with server forcing, its pointless.\n"
+            fi; eval declare -a UL_SERVERS="$(getUploadServers)"
+            IFS=',' read -ra BLACKLIST <<< "$2"; shift 2 ;;
         -t | --retries) RETRIES="$2"
             if ! [[ "$RETRIES" =~ ^[0-9]$ ]] || [[ "$RETRIES" -lt 0 ]]; then
                 handle_exit "3" "You wanted to set negative number of retries or ..." \
@@ -293,18 +302,28 @@ doUpload() {
     esac
     error=$(extract "$response" "error.code")
     if [[ "$error" == "429" ]]; then
-        echo "103"; echo "$(extract "$response" "error.info.timeout")#"
-        return
+        echo "103"; echo "$(extract "$response" "error.info.timeout")#"; return
     elif [[ -n "$error" ]]; then
-        echo "104"; echo -e "Error number $error. $(extract "$response" "error.message")#"
-        return
+        echo "104"; echo -e "Error number $error. $(extract "$response" "error.message")#"; return
     fi
-
-    local server; server="$(extract "$response" server)"
+    local server server_short
+    server="$(extract "$response" server)"; server_short=$(echo -ne "$server" | grep -oP "dl\K(\d+)")
     if [[ -n "$UL_SERVER" ]]; then
-        if [[ ! "$UL_SERVER" == $(echo -ne "$server" | cut -b3) ]]; then
+        if [[ ! "$UL_SERVER" == "$server_short" ]]; then
             echo "107#"; return
         fi
+    fi
+    if [[ -n ${BLACKLIST+x} ]]; then
+        for i in "${BLACKLIST[@]}"; do
+            if ! contains_element "$i" "${UL_SERVERS[@]}"; then
+                IFS=$','; echo "109"; echo "$i: Invalid server."
+                echo "Server you wanted to omit uploading to doesn't exists " \
+                "Possible servers are: ${UL_SERVERS[*]//  /|}#"; return
+            fi
+            if [[ "$i" == "$server_short" ]]; then
+                echo "108#"; return
+            fi
+        done
     fi
     local key; key=$(extract "$response" key)
     local file_id; file_id=$(extract "$response" file_id)
@@ -354,7 +373,8 @@ tryUpload() {
             || [[ ${handle[0]} == "102" ]]; then
             return
         elif [[ ${handle[0]} == "101" ]] || [[ ${handle[0]} == "104" ]] \
-            || [[ ${handle[0]} == "105" ]] || [[ ${handle[0]} == "106" ]]; then
+            || [[ ${handle[0]} == "105" ]] || [[ ${handle[0]} == "106" ]] || \
+            [[ ${handle[0]} == "109" ]]; then
             handle_exit "${handle[@]}"
         elif [[ ${handle[0]} == "103" ]]; then
             local penalty
@@ -362,6 +382,9 @@ tryUpload() {
             counter "$penalty" "\033[33mToo many key requests, hotshot. Gotta wait ## seconds now...\n"
         elif [[ ${handle[0]} == "107" ]]; then
             counter "3" "\033[33mRetrying in ## seconds until we force upload to dl${UL_SERVER} server.\n"
+            ((--i))
+        elif [[ ${handle[0]} == "108" ]]; then
+            counter "3" "\033[33mRetrying in ## seconds until we reach non-blacklisted server.\n"
             ((--i))
         else
             counter "5" "\033[33mcURL error nr ${handle[0]} happend.\n" \
@@ -383,7 +406,9 @@ getExtension() {
 
 declare -i argc
 argc=${#TARGETS[@]}
-
+if [[ -z "$ROOM" ]]; then
+    handle_exit "11" "I don't have any room I can upload to! Use -r option, brah.\n"
+fi
 if [[ $argc -eq 0 ]]; then
     handle_exit "4" "You didn't specify any files that can be uploaded!\n"
 elif [[ $argc == 2 ]] && [[ -n "$CALL" ]]; then
