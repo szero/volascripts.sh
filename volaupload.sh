@@ -2,7 +2,7 @@
 # shellcheck disable=SC2153,SC1117
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=2.7
+__VOLAUPLOADSH_VERSION__=2.8
 
 if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wmvb: \
     --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new,vanned,server-blacklist \
@@ -29,6 +29,7 @@ fi
 
 SERVER="https://volafile.org"
 eval declare COOKIE="$TMP/cuckie_$(head -c6 <(tr -dc '[:alnum:]' < /dev/urandom))"
+eval declare LAST_ERROR="$TMP/error_$(head -c6 <(tr -dc '[:alnum:]' < /dev/urandom))"
 RETRIES="3"
 
 #Return non zero value when script gets interrupted with Ctrl+C or some error occurs
@@ -43,7 +44,7 @@ handle_exit() {
     fi
     for failure in "${@:2}"; do
         echo -e "\033[31m$failure\033[0m" >&2
-    done; rm -f "$COOKIE" "$stuff"
+    done; rm -f "$COOKIE" "$LAST_ERROR" "$stuff"
     if [[ $exit_code -eq 0 ]]; then
         local current; current="$(date "+%s")"
         echo -en "Uploading completed in "
@@ -194,9 +195,13 @@ skip() {
 }
 
 if [[ $(type curlbar 2>/dev/null) ]]; then
+    # we can silence the progressbar with if we use
+    # curlbar since we can create our own through trace-ascii option
     cURL="curlbar"
+    silence="sS"
 else
     cURL="curl"
+    silence=""
 fi
 
 extract() {
@@ -250,19 +255,19 @@ makeApiCall() {
     if [[ -n "$name" ]] && [[ -n "$password" ]]; then
         #session "memoization"
         if [[ ! -f "$COOKIE" ]]; then
-            curl -1L -H "Origin: ${SERVER}" -H "$ref" -H "Accept: text/values" \
-            "${SERVER}/rest/login?name=${name}&password=${password}" 2>/dev/null | \
+            curl -sS1L -H "Origin: ${SERVER}" -H "$ref" -H "Accept: text/values" \
+            "${SERVER}/rest/login?name=${name}&password=${password}" 2>"$LAST_ERROR" | \
             cut -d$'\n' -f1 > "$COOKIE"
         fi
         cookie="$(head -qn 1 "$COOKIE")"
         if [[ "$cookie" == "error.code=403" ]]; then
             return 101
         fi
-        curl -1fL -b "$cookie" -H "Origin: ${SERVER}" -H "$ref" \
-            -H "Accept: text/values" "${SERVER}/rest/${method}?${query}" 2>/dev/null
+        curl -sS1fL -b "$cookie" -H "Origin: ${SERVER}" -H "$ref" \
+            -H "Accept: text/values" "${SERVER}/rest/${method}?${query}" 2>"$LAST_ERROR"
     else
-        curl -1fL -H "Origin: ${SERVER}" -H "$ref" \
-            -H "Accept: text/values" "${SERVER}/rest/${method}?${query}" 2>/dev/null
+        curl -sS1fL -H "Origin: ${SERVER}" -H "$ref" \
+            -H "Accept: text/values" "${SERVER}/rest/${method}?${query}" 2>"$LAST_ERROR"
     fi
 }
 
@@ -284,21 +289,21 @@ doUpload() {
     fi
     if [[ -n "$name" ]] && [[ -n "$pass" ]]; then
         response=$(makeApiCall getUploadKey "name=$name&room=$room" "$room" "$name" "$pass")
-    elif [[ -n "$name" ]]; then
-        response=$(makeApiCall getUploadKey "name=$name&room=$room" "$room")
     else
-        #If user didn't specify name, default it to Volaphile.
-        name="Volaphile"
+        if [[ -z "$name" ]]; then
+            #If user didn't specify name, default it to Volaphile.
+            name="Volaphile"
+        fi
         response=$(makeApiCall getUploadKey "name=$name&room=$room" "$room")
     fi
-    error="$?"
-    case "$error" in
+    case "$?" in
         0  ) ;;
         6  ) echo "106"; echo "Check your interwebz connection, my friendo!"
              echo "Either that, or volafile is dead.#"; return ;;
         101) echo "101"; echo "Login Error: You used wrong login and/or password my dude."
              echo "You wanna login properly, so those sweet volastats can stack up!#";  return;;
-        *  ) echo "105"; echo "cURL error of code $error happend while querying the REST API.#"; return ;;
+        *  ) echo "105"; echo -e "cURL fizzled out while querying the REST API:\n
+             $(cat "$LAST_ERROR")#"; return ;;
     esac
     error=$(extract "$response" "error.code")
     if [[ "$error" == "429" ]]; then
@@ -317,7 +322,7 @@ doUpload() {
         for i in "${BLACKLIST[@]}"; do
             if ! contains_element "$i" "${UL_SERVERS[@]}"; then
                 IFS=$','; echo "109"; echo "$i: Invalid server."
-                echo "Server you wanted to omit uploading to doesn't exists " \
+                echo "Server you wanted omit uploading to doesn't exist " \
                 "Possible servers are: ${UL_SERVERS[*]//  /|}#"; return
             fi
             if [[ "$i" == "$server_short" ]]; then
@@ -335,13 +340,13 @@ doUpload() {
     if [[ -z "$renamed" ]]; then
         #curlbar prints stuff to stderr so we change color in that descriptor
         echo -e "$up_str" >&2
-        $cURL -1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
+        $cURL -"${silence}"1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
             "${server}/upload?room=${room}&key=${key}${roompass}" 1>/dev/null
         error="$?"
     else
         echo -e "$up_str" >&2
         echo -e "-> File renamed to: \033[1m${renamed}\033[22m\033[33m" >&2
-        $cURL -1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
+        $cURL -"${silence}"1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
             "${server}/upload?room=${room}&key=${key}${roompass}" 1>/dev/null
         error="$?"
         file="$renamed"
