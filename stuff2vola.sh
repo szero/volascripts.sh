@@ -2,7 +2,7 @@
 # shellcheck disable=SC2155,SC1117
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=2.4
+__STUFF2VOLASH_VERSION__=2.5
 
 if ! OPTS=$(getopt --options hr:n:p:u:a:f:d:ob \
     --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,force-server:,dir:,audio-only,best-quality \
@@ -27,6 +27,7 @@ cleanup() {
     for d in $DIR_LIST ; do
         rm -rf "$d"
     done
+    exec 3>&-
     trap - SIGHUP SIGTERM SIGINT EXIT
     local failure
     local exit_code="$1"
@@ -121,6 +122,7 @@ if [[ -z "$(command -v curlbar)" ]]; then
     cURL="curl"
 else
     cURL="curlbar"
+    exec 3<>/dev/null
 fi
 
 skip() {

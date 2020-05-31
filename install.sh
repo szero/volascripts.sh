@@ -4,11 +4,11 @@
 set -uo pipefail
 IFS=$'\n\t'
 
-VOLAUPLOAD_SH_VER=(2 8)
-STUFF2VOLA_SH_VER=(2 4)
+VOLAUPLOAD_SH_VER=(2 9)
+STUFF2VOLA_SH_VER=(2 5)
 VOLACRYPT_SH_VER=(1 3)
 PROWATCH_SH_VER=(1 2)
-CURLBAR_VER=(1 2)
+CURLBAR_VER=(1 3)
 
 add_path() {
 if ! [[ $PATH =~ $2 ]]; then
@@ -83,7 +83,8 @@ installing() {
         local yn; printf "\033[32m[Y]es\033[0m/\033[31m[N]o\033[0m) "; read -er yn
         case "$yn" in
             [Yy]*)
-            if [[ "${BASH_VERSINFO[0]}" -ge 4 ]] && [[ "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+            if [[ "${BASH_VERSINFO[0]}" -eq 4 ]] && [[ "${BASH_VERSINFO[1]}" -ge 3 ]] || \
+              [[ "${BASH_VERSINFO[0]}" -ge 5 ]]; then
                 if ! version_check "curlbar" "${CURLBAR_VER[@]}" ; then
                     install_curlbar "$1"
                 fi

@@ -2,7 +2,7 @@
 # shellcheck disable=SC2153,SC1117
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=2.8
+__VOLAUPLOADSH_VERSION__=2.9
 
 if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wmvb: \
     --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new,vanned,server-blacklist \
@@ -27,9 +27,13 @@ else
     TMP="${TMPDIR%/}"
 fi
 
+genRandNumber() {
+    head -c"$1" <(tr -dc '[:alnum:]' < /dev/urandom)
+}
+
 SERVER="https://volafile.org"
-eval declare COOKIE="$TMP/cuckie_$(head -c6 <(tr -dc '[:alnum:]' < /dev/urandom))"
-eval declare LAST_ERROR="$TMP/error_$(head -c6 <(tr -dc '[:alnum:]' < /dev/urandom))"
+eval declare COOKIE="$TMP/cuckie_$(genRandNumber 6)"
+eval declare LAST_ERROR="$TMP/error_$(genRandNumber 6)"
 RETRIES="3"
 
 #Return non zero value when script gets interrupted with Ctrl+C or some error occurs
@@ -195,8 +199,8 @@ skip() {
 }
 
 if [[ $(type curlbar 2>/dev/null) ]]; then
-    # we can silence the progressbar with if we use
-    # curlbar since we can create our own through trace-ascii option
+    # we can silence the progressbar if we use curlbar
+    # since we can create our own through trace-ascii option
     cURL="curlbar"
     silence="sS"
 else
@@ -213,6 +217,13 @@ extract() {
             return
         fi
         done)
+}
+
+trim() {
+    local var="$*"
+    var="${var#"${var%%[![:space:]]*}"}" # remove leading whitespace characters
+    var="${var%"${var##*[![:space:]]}"}" # remove trailing whitespace characters
+    printf '%s' "$var"
 }
 
 counter() {
@@ -245,7 +256,7 @@ makeApiCall() {
     local room="$3"
     local name="$4"
     local password="$5"
-    local cookie
+    local cookie=""
     if [[ -n "$room" ]]; then
         local ref="Referer: ${SERVER}/r/${room}"
     else
@@ -263,12 +274,9 @@ makeApiCall() {
         if [[ "$cookie" == "error.code=403" ]]; then
             return 101
         fi
-        curl -sS1fL -b "$cookie" -H "Origin: ${SERVER}" -H "$ref" \
-            -H "Accept: text/values" "${SERVER}/rest/${method}?${query}" 2>"$LAST_ERROR"
-    else
-        curl -sS1fL -H "Origin: ${SERVER}" -H "$ref" \
-            -H "Accept: text/values" "${SERVER}/rest/${method}?${query}" 2>"$LAST_ERROR"
     fi
+    curl -sS1fL -b "$cookie" -H "Origin: ${SERVER}" -H "$ref" \
+        -H "Accept: text/values" "${SERVER}/rest/${method}?${query}" 2>"$LAST_ERROR"
 }
 
 doUpload() {
@@ -282,8 +290,8 @@ doUpload() {
     local pass="$4"
     local roompass="$5"
     local renamed="$6"
-    local response
-    local error
+    local response replace
+    local error lerr
     if [[ -n "$roompass" ]]; then
         roompass="&password=$roompass"
     fi
@@ -296,20 +304,23 @@ doUpload() {
         fi
         response=$(makeApiCall getUploadKey "name=$name&room=$room" "$room")
     fi
-    case "$?" in
+    error="$?"; lerr="$(trim "$(cat "$LAST_ERROR")")"
+    case "$error" in
         0  ) ;;
         6  ) echo "106"; echo "Check your interwebz connection, my friendo!"
              echo "Either that, or volafile is dead.#"; return ;;
         101) echo "101"; echo "Login Error: You used wrong login and/or password my dude."
              echo "You wanna login properly, so those sweet volastats can stack up!#";  return;;
-        *  ) echo "105"; echo -e "cURL fizzled out while querying the REST API:\n
-             $(cat "$LAST_ERROR")#"; return ;;
+        * ) ;;
     esac
     error=$(extract "$response" "error.code")
-    if [[ "$error" == "429" ]]; then
+    if [[ "$error" == "429" ]] ; then
         echo "103"; echo "$(extract "$response" "error.info.timeout")#"; return
-    elif [[ -n "$error" ]]; then
-        echo "104"; echo -e "Error number $error. $(extract "$response" "error.message")#"; return
+    elif [[ $(echo "$lerr" | cut -d$' ' -f8) == "429" ]]; then
+        echo "103"; echo "14000#"; return
+    elif [[ -n "$error" ]] || [[ -n "$lerr" ]]; then
+        echo "104"; echo -e "Error number $error\nStuff from cURL: $lerr"
+        echo -e "$(extract "$response" "error.message")#"; return
     fi
     local server server_short
     server="$(extract "$response" server)"; server_short=$(echo -ne "$server" | grep -oP "dl\K(\d+)")
@@ -337,20 +348,15 @@ doUpload() {
     up_str+=" to \033[1m$ROOM, $(echo "$server" | cut -f1 -d'.')\033[22m as \033[1m$name\033[22m\033[33m"
     server="https://$server"
     # -f option makes curl return error 22 on server responses with code 400 and higher
-    if [[ -z "$renamed" ]]; then
+    echo -e "$up_str" >&2
+    if [[ -n "$renamed" ]]; then
         #curlbar prints stuff to stderr so we change color in that descriptor
-        echo -e "$up_str" >&2
-        $cURL -"${silence}"1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\"" \
-            "${server}/upload?room=${room}&key=${key}${roompass}" 1>/dev/null
-        error="$?"
-    else
-        echo -e "$up_str" >&2
         echo -e "-> File renamed to: \033[1m${renamed}\033[22m\033[33m" >&2
-        $cURL -"${silence}"1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\";filename=\"${renamed}\"" \
-            "${server}/upload?room=${room}&key=${key}${roompass}" 1>/dev/null
-        error="$?"
-        file="$renamed"
+        replace=";filename=\"${renamed}\""
     fi
+    $cURL -"${silence}"1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\"$replace" \
+        "${server}/upload?room=${room}&key=${key}${roompass}" 1>/dev/null 3>"$LAST_ERROR" ; error="$?"
+    if [[ -n "$renamed" ]]; then file="$renamed"; fi; lerr="$(trim "$(cat "$LAST_ERROR")")"
     printf "\033[0m" >&2
     case $error in
         0 | 1 | 102) #Replace spaces with %20 so my terminal url finder can see links properly.
@@ -360,8 +366,7 @@ doUpload() {
             file=$(basename "$file" | sed -r "s/ /%20/g" )
             printf "\n\033[35mVola direct link:\033[0m\n" >&2
             printf "\033[1m%s/get/%s/%s\033[0m\n\n" "$SERVER" "$file_id" "$file" >&2 ;;
-        22) skip "\nServer error. Usually caused by gateway timeout.\n" ;;
-        * ) skip "\nError nr \033[1m${error}\033[22m: Upload failed!\n" ;;
+        * ) skip "\n$lerr\n" ;;
     esac
     echo "${error}#"
 }
