@@ -19,7 +19,7 @@ files with different names without a need to rename them beforehand.
 Use -h or --help command for full list of capabilities. Check [Configuration](#configuration)
 section below to learn how to preset your room, nick and password.
 
-stuff2vola.sh ver. 2.5
+stuff2vola.sh ver. 2.6
 ----------------------
 
 Are you a fan of redundancy and don't want to post links to stuff in chat like a pleb?
