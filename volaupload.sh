@@ -2,7 +2,7 @@
 # shellcheck disable=SC2153,SC1117
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=2.9
+__VOLAUPLOADSH_VERSION__=3.0
 
 if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wmvb: \
     --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new,vanned,server-blacklist \
@@ -31,13 +31,15 @@ genRandNumber() {
     head -c"$1" <(tr -dc '[:alnum:]' < /dev/urandom)
 }
 
-SERVER="https://volafile.org"
-eval declare COOKIE="$TMP/cuckie_$(genRandNumber 6)"
-eval declare LAST_ERROR="$TMP/error_$(genRandNumber 6)"
-RETRIES="3"
+declare -r SERVER="https://volafile.org"
+declare COOKIE; COOKIE="$TMP/cuckie_$(genRandNumber 6)"
+declare LAST_ERROR; LAST_ERROR="$TMP/error_$(genRandNumber 6)"
+declare PART; PART="$TMP/filepart_$(genRandNumber 6)"
+declare STUFF
+declare -r RETRIES="3"
 
 #Return non zero value when script gets interrupted with Ctrl+C or some error occurs
-# and remove the cookie
+# and remove the intermediate files
 handle_exit() {
     trap - SIGHUP SIGINT SIGTERM EXIT
     local failure
@@ -48,7 +50,7 @@ handle_exit() {
     fi
     for failure in "${@:2}"; do
         echo -e "\033[31m$failure\033[0m" >&2
-    done; rm -f "$COOKIE" "$LAST_ERROR" "$stuff"
+    done; rm -f "$(cat "$PART" 2>/dev/null)"; rm -f "$COOKIE" "$LAST_ERROR" "$PART" "$STUFF"
     if [[ $exit_code -eq 0 ]]; then
         local current; current="$(date "+%s")"
         echo -en "Uploading completed in "
@@ -256,6 +258,7 @@ makeApiCall() {
     local room="$3"
     local name="$4"
     local password="$5"
+    local server="$6"
     local cookie=""
     if [[ -n "$room" ]]; then
         local ref="Referer: ${SERVER}/r/${room}"
@@ -275,8 +278,13 @@ makeApiCall() {
             return 101
         fi
     fi
-    curl -sS1fL -b "$cookie" -H "Origin: ${SERVER}" -H "$ref" \
-        -H "Accept: text/values" "${SERVER}/rest/${method}?${query}" 2>"$LAST_ERROR"
+    if [[ -n "$server" ]]; then
+        local serv="$server"
+    else
+        local serv="$SERVER"
+    fi
+    curl -sS1fL -b "$cookie" -H "Origin: ${SERVER}" -H "$ref" -H "Connection: close" \
+        -H "Accept: text/values" "${serv}/rest/${method}?${query}" 2>"$LAST_ERROR"
 }
 
 doUpload() {
@@ -292,9 +300,6 @@ doUpload() {
     local renamed="$6"
     local response replace
     local error lerr
-    if [[ -n "$roompass" ]]; then
-        roompass="&password=$roompass"
-    fi
     if [[ -n "$name" ]] && [[ -n "$pass" ]]; then
         response=$(makeApiCall getUploadKey "name=$name&room=$room" "$room" "$name" "$pass")
     else
@@ -343,7 +348,8 @@ doUpload() {
     fi
     local key; key=$(extract "$response" key)
     local file_id; file_id=$(extract "$response" file_id)
-    local up_str
+    local up_str; local startAT; local mainfile
+    mainfile="$file"
     up_str="\033[32m<\033[38;5;22m/\\\\\033[32m> Uploading \033[1m$(basename "$file")\033[22m"
     up_str+=" to \033[1m$ROOM, $(echo "$server" | cut -f1 -d'.')\033[22m as \033[1m$name\033[22m\033[33m"
     server="https://$server"
@@ -351,18 +357,32 @@ doUpload() {
     echo -e "$up_str" >&2
     if [[ -n "$renamed" ]]; then
         #curlbar prints stuff to stderr so we change color in that descriptor
-        echo -e "-> File renamed to: \033[1m${renamed}\033[22m\033[33m" >&2
+        echo -e "-> File renamed to: \033[1m${renamed}\033[22m" >&2
         replace=";filename=\"${renamed}\""
     fi
-    $cURL -"${silence}"1fL -H "Origin: ${SERVER}" -F "file=@\"${file}\"$replace" \
-        "${server}/upload?room=${room}&key=${key}${roompass}" 1>/dev/null 3>"$LAST_ERROR" ; error="$?"
-    if [[ -n "$renamed" ]]; then file="$renamed"; fi; lerr="$(trim "$(cat "$LAST_ERROR")")"
-    printf "\033[0m" >&2
+    while true; do
+        printf "\033[33m" >&2
+        $cURL -"${silence}"1fL -H "Origin: $SERVER" -H "Referer: $SERVER/r/$room" -F "file=@\"${file}\"$replace" \
+            "${server}/upload?room=${room}&key=${key}&password=${roompass}${startAT}" 1>/dev/null 3>"$LAST_ERROR"
+        error="$?" ; lerr="$(trim "$(cat "$LAST_ERROR")")"
+        if [[ "$error" -eq 22 ]] && echo "$lerr" | grep -q "50." || [[ "$error" -eq 52 ]] ; then
+            response=$(makeApiCall uploadStatus "room=$room&key=$key" "$room" "" "" "$server")
+            error="$?"; lerr="$(trim "$(cat "$LAST_ERROR")")"
+            [[ $(extract "$response" ended) == "true" ]] && break
+            local recv_bytes; recv_bytes=$(extract "$response" receivedBytes)
+            printf "\n\033[35mResuming upload at the %sth byte from the beginning of the file... \033[0m\n" "$recv_bytes" >&2
+            startAT="&startAt=$recv_bytes"
+            [[ ! -f "$PART" ]] && echo "$TMP/$(basename "$mainfile")" > "$PART"
+            dd bs="$recv_bytes" skip=1 if="$mainfile" of="$(cat "$PART")" 2>/dev/null ; file="$(cat "$PART")"
+            continue
+        fi; break
+    done; [[ -f "$PART" ]] && { rm -f "$(cat "$PART")"; rm -f "$PART"; sync; }
     case $error in
         0 | 1 | 102) #Replace spaces with %20 so my terminal url finder can see links properly.
             if [[ $error -eq 102 ]]; then
                 printf "\033[33mFile was too small to make me bothered with printing the progress bar.\033[0m\n" >&2
             fi
+            [[ -n "$renamed" ]] && file="$renamed"
             file=$(basename "$file" | sed -r "s/ /%20/g" )
             printf "\n\033[35mVola direct link:\033[0m\n" >&2
             printf "\033[1m%s/get/%s/%s\033[0m\n\n" "$SERVER" "$file_id" "$file" >&2 ;;
@@ -505,18 +525,18 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
                 echo -e "\033[33;1m${t}\033[22m: Purged this bad boi...\033[0m\n" >&2
             fi
         elif [[ "$(readlink "$t")" == "pipe:"* ]]; then
-            stuff="$(mktemp)"
-            cat "$t" > "$stuff"
+            STUFF="$(mktemp)"
+            cat "$t" > "$STUFF"
             while read -r line; do
                 rename=$(echo "$line" | tr -s " ")
                 if [[ -n "$rename" ]]; then
                     break
                 fi
-            done < "$stuff"
+            done < "$STUFF"
             if [[ -n "$1" ]]; then
                 rename="$1"
             fi
-            tryUpload "$stuff" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS" "$rename"
+            tryUpload "$STUFF" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS" "$rename"
         else
             echo -e "\n\033[33;1m${t}\033[22m: This argument isn't a file or a directory. Skipping ...\033[0m\n" >&2
             echo -e "Use -h or --help to check program usage.\n" >&2
