@@ -2,7 +2,7 @@
 # shellcheck disable=SC2153,SC1117
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=3.0
+__VOLAUPLOADSH_VERSION__=3.1
 
 if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wmvb: \
     --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new,vanned,server-blacklist \
@@ -50,7 +50,7 @@ handle_exit() {
     fi
     for failure in "${@:2}"; do
         echo -e "\033[31m$failure\033[0m" >&2
-    done; rm -f "$(cat "$PART" 2>/dev/null)"; rm -f "$COOKIE" "$LAST_ERROR" "$PART" "$STUFF"
+    done; rm -rf "$COOKIE" "$LAST_ERROR" "$STUFF" "$PART"
     if [[ $exit_code -eq 0 ]]; then
         local current; current="$(date "+%s")"
         echo -en "Uploading completed in "
@@ -303,12 +303,11 @@ doUpload() {
     if [[ -n "$name" ]] && [[ -n "$pass" ]]; then
         response=$(makeApiCall getUploadKey "name=$name&room=$room" "$room" "$name" "$pass")
     else
-        if [[ -z "$name" ]]; then
-            #If user didn't specify name, default it to Volaphile.
-            name="Volaphile"
-        fi
+        #If user didn't specify name, default it to Volaphile.
+        [[ -z "$name" ]] && name="Volaphile"
         response=$(makeApiCall getUploadKey "name=$name&room=$room" "$room")
     fi
+    [[ -n "$roompass" ]] && roompass="&password=$roompass"
     error="$?"; lerr="$(trim "$(cat "$LAST_ERROR")")"
     case "$error" in
         0  ) ;;
@@ -362,8 +361,9 @@ doUpload() {
     fi
     while true; do
         printf "\033[33m" >&2
-        $cURL -"${silence}"1fL -H "Origin: $SERVER" -H "Referer: $SERVER/r/$room" -F "file=@\"${file}\"$replace" \
-            "${server}/upload?room=${room}&key=${key}&password=${roompass}${startAT}" 1>/dev/null 3>"$LAST_ERROR"
+        $cURL -"${silence}"1fL -H "Origin: $SERVER" -H "Referer: $SERVER/r/$room" \
+            -H "Connection: close" -F "file=@\"$file\"$replace" \
+            "${server}/upload?room=${room}&key=${key}${roompass}${startAT}" 1>/dev/null 3>"$LAST_ERROR"
         error="$?" ; lerr="$(trim "$(cat "$LAST_ERROR")")"
         if [[ "$error" -eq 22 ]] && echo "$lerr" | grep -q "50." || [[ "$error" -eq 52 ]] ; then
             response=$(makeApiCall uploadStatus "room=$room&key=$key" "$room" "" "" "$server")
@@ -372,11 +372,11 @@ doUpload() {
             local recv_bytes; recv_bytes=$(extract "$response" receivedBytes)
             printf "\n\033[35mResuming upload at the %sth byte from the beginning of the file... \033[0m\n" "$recv_bytes" >&2
             startAT="&startAt=$recv_bytes"
-            [[ ! -f "$PART" ]] && echo "$TMP/$(basename "$mainfile")" > "$PART"
-            dd bs="$recv_bytes" skip=1 if="$mainfile" of="$(cat "$PART")" 2>/dev/null ; file="$(cat "$PART")"
+            [[ ! -d "$PART" ]] && { mkdir -p "$PART"; file="$PART/$(basename "$mainfile")"; }
+            dd bs="$recv_bytes" skip=1 if="$mainfile" of="$file" 2>/dev/null
             continue
         fi; break
-    done; [[ -f "$PART" ]] && { rm -f "$(cat "$PART")"; rm -f "$PART"; sync; }
+    done; [[ -d "$PART" ]] && { rm -rf "$PART"; sync; }
     case $error in
         0 | 1 | 102) #Replace spaces with %20 so my terminal url finder can see links properly.
             if [[ $error -eq 102 ]]; then
@@ -533,9 +533,7 @@ elif [[ $argc -gt 0 ]] && [[ -z "$WATCHING" ]] && [[ -z "$CALL" ]]; then
                     break
                 fi
             done < "$STUFF"
-            if [[ -n "$1" ]]; then
-                rename="$1"
-            fi
+            [[ -n "$1" ]] && rename="$1"
             tryUpload "$STUFF" "$ROOM" "$NICK" "$PASSWORD" "$ROOMPASS" "$rename"
         else
             echo -e "\n\033[33;1m${t}\033[22m: This argument isn't a file or a directory. Skipping ...\033[0m\n" >&2
