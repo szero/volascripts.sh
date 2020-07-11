@@ -2,7 +2,7 @@
 # shellcheck disable=SC2153,SC1117
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=3.1
+__VOLAUPLOADSH_VERSION__=3.2
 
 if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wmvb: \
     --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new,vanned,server-blacklist \
@@ -203,11 +203,11 @@ skip() {
 if [[ $(type curlbar 2>/dev/null) ]]; then
     # we can silence the progressbar if we use curlbar
     # since we can create our own through trace-ascii option
-    cURL="curlbar"
-    silence="sS"
+    declare cURL="curlbar"
+    declare silence="sS"
 else
-    cURL="curl"
-    silence=""
+    declare cURL="curl"
+    declare silence=""
 fi
 
 extract() {
@@ -238,11 +238,9 @@ counter() {
     while read -r line; do a+=("${line#"${line%%[![:space:]]*}"}"); done < <(echo -e "${@:2}")
     for line in "${a[@]}"; do
         if [[ $line =~ '##' ]]; then
-            echo >&2
-            position="$i"
+            echo >&2; position="$i"
         else
-            printf "%s\n" "$line" >&2
-            ((i++))
+            printf "%s\n" "$line" >&2; ((i++))
         fi
     done
     i=$(( ${#a[@]} - position - 1 ))
@@ -260,6 +258,7 @@ makeApiCall() {
     local password="$5"
     local server="$6"
     local cookie=""
+    local serv="$SERVER"
     if [[ -n "$room" ]]; then
         local ref="Referer: ${SERVER}/r/${room}"
     else
@@ -278,13 +277,14 @@ makeApiCall() {
             return 101
         fi
     fi
-    if [[ -n "$server" ]]; then
-        local serv="$server"
-    else
-        local serv="$SERVER"
-    fi
+    [[ -n "$server" ]] && serv="$server"
     curl -sS1fL -b "$cookie" -H "Origin: ${SERVER}" -H "$ref" -H "Connection: close" \
         -H "Accept: text/values" "${serv}/rest/${method}?${query}" 2>"$LAST_ERROR"
+}
+
+volapost() {
+    IFS=""; $cURL -"${silence}"1fL -H "Origin: $SERVER" -H "Referer: $SERVER/r/$1" \
+        -H "Connection: close" -F "file=@\"$2\"$3" "${4}/upload?room=${1}${*:5}" 1>/dev/null
 }
 
 doUpload() {
@@ -337,18 +337,17 @@ doUpload() {
         for i in "${BLACKLIST[@]}"; do
             if ! contains_element "$i" "${UL_SERVERS[@]}"; then
                 IFS=$','; echo "109"; echo "$i: Invalid server."
-                echo "Server you wanted omit uploading to doesn't exist " \
-                "Possible servers are: ${UL_SERVERS[*]//  /|}#"; return
+                echo "Server you wanted omit uploading to doesn't exist." \
+                "Available servers: ${UL_SERVERS[*]//  /|}#"; return
             fi
             if [[ "$i" == "$server_short" ]]; then
                 echo "108#"; return
             fi
         done
     fi
-    local key; key=$(extract "$response" key)
+    local key; key="&key=$(extract "$response" key)"
     local file_id; file_id=$(extract "$response" file_id)
-    local up_str; local startAT; local mainfile
-    mainfile="$file"
+    local up_str; local startAT; local mainfile="$file"
     up_str="\033[32m<\033[38;5;22m/\\\\\033[32m> Uploading \033[1m$(basename "$file")\033[22m"
     up_str+=" to \033[1m$ROOM, $(echo "$server" | cut -f1 -d'.')\033[22m as \033[1m$name\033[22m\033[33m"
     server="https://$server"
@@ -361,12 +360,13 @@ doUpload() {
     fi
     while true; do
         printf "\033[33m" >&2
-        $cURL -"${silence}"1fL -H "Origin: $SERVER" -H "Referer: $SERVER/r/$room" \
-            -H "Connection: close" -F "file=@\"$file\"$replace" \
-            "${server}/upload?room=${room}&key=${key}${roompass}${startAT}" 1>/dev/null 3>"$LAST_ERROR"
-        error="$?" ; lerr="$(trim "$(cat "$LAST_ERROR")")"
-        if [[ "$error" -eq 22 ]] && echo "$lerr" | grep -q "50." || [[ "$error" -eq 52 ]] ; then
-            response=$(makeApiCall uploadStatus "room=$room&key=$key" "$room" "" "" "$server")
+        if [[ -n "$silence" ]]; then
+            volapost "$room" "$file" "$replace" "$server" "$key" "$roompass" "$startAT" 3>"$LAST_ERROR"
+        else
+            volapost "$room" "$file" "$replace" "$server" "$key" "$roompass" "$startAT" 2> >(tee "$LAST_ERROR" >&2)
+        fi; error="$?"; lerr="$(trim "$(cat "$LAST_ERROR")")"
+        if [[ "$error" -eq 22 ]] && grep -q "50[23]" "$LAST_ERROR"; then
+            response=$(makeApiCall uploadStatus "room=$room$key" "$room" "" "" "$server")
             error="$?"; lerr="$(trim "$(cat "$LAST_ERROR")")"
             [[ $(extract "$response" ended) == "true" ]] && break
             local recv_bytes; recv_bytes=$(extract "$response" receivedBytes)
