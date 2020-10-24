@@ -2,7 +2,7 @@
 # shellcheck disable=SC2155,SC1117
 
 # shellcheck disable=SC2034
-__STUFF2VOLASH_VERSION__=2.6
+__STUFF2VOLASH_VERSION__=2.7
 
 if ! OPTS=$(getopt --options hr:n:p:u:a:f:d:ob \
     --longoptions help,room:,nick:,pass:,room-pass:,upload-as:,force-server:,dir:,audio-only,best-quality \
@@ -263,7 +263,8 @@ postStuff() {
         filepath="$(urldecode "$dir/$(basename "$l")")"
         echo -e "\033[32m<\033[38;5;88m\\/\033[32m> Downloading from \033[1m$l\033[22m \033[33m"
         if [[ "$ftype" == "text/html" ]]; then
-            title="$(youtube-dl --get-title "$l")"; title="$(head -c200 <(echo -e "$title" | tr -d "\"\r\n\t"))..."
+            title="$(youtube-dl --get-title "$l")"
+            title="$(head -c200 <(echo -e "$title" | tr -d "\"\r\n\t" | tr "/" " "))..."
             youtube-dlBar "-o" "$dir/$title.%(ext)s" "$args" "$l"
         else
             if [[ "$l" =~ ^.*volafile\.[net|org|io] ]]; then

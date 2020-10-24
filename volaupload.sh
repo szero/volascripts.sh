@@ -2,7 +2,7 @@
 # shellcheck disable=SC2153,SC1117
 
 # shellcheck disable=SC2034
-__VOLAUPLOADSH_VERSION__=3.2
+__VOLAUPLOADSH_VERSION__=3.3
 
 if ! OPTS=$(getopt --options hr:cn:p:u:a:f:t:wmvb: \
     --longoptions help,room:,call,nick:,pass:,room-pass:,upload-as:,force-server:,retries:,watch,most-new,vanned,server-blacklist \
@@ -307,7 +307,6 @@ doUpload() {
         [[ -z "$name" ]] && name="Volaphile"
         response=$(makeApiCall getUploadKey "name=$name&room=$room" "$room")
     fi
-    [[ -n "$roompass" ]] && roompass="&password=$roompass"
     error="$?"; lerr="$(trim "$(cat "$LAST_ERROR")")"
     case "$error" in
         0  ) ;;
@@ -348,6 +347,7 @@ doUpload() {
     local key; key="&key=$(extract "$response" key)"
     local file_id; file_id=$(extract "$response" file_id)
     local up_str; local startAT; local mainfile="$file"
+    [[ -n "$roompass" ]] && roompass="&password=$roompass"
     up_str="\033[32m<\033[38;5;22m/\\\\\033[32m> Uploading \033[1m$(basename "$file")\033[22m"
     up_str+=" to \033[1m$ROOM, $(echo "$server" | cut -f1 -d'.')\033[22m as \033[1m$name\033[22m\033[33m"
     server="https://$server"
